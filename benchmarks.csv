@@ -1,0 +1,6 @@
+problem_id,method,accuracy,error_rate,diversity,time_sec,tokens,robust_diversity,clusters
+energy_crisis,CoT,0.0,1.0,0.992,0.0,17,,
+energy_crisis,ToT,0.1,0.9,1.0,0.0,15,,
+energy_crisis,GoT,0.0,1.0,1.0,0.0,14,,
+energy_crisis,ReAct,0.1,0.9,0.985,0.0,16,,
+energy_crisis,CPPTAI,0.6,0.4,0.94,24.334,535,0.773,3

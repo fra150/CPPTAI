@@ -1,0 +1,106 @@
+{
+  "records": [
+    {
+      "problem_id": "energy_crisis",
+      "method": "CoT",
+      "accuracy": 0.0,
+      "error_rate": 1.0,
+      "diversity": 0.992,
+      "time_sec": 0.0,
+      "tokens": 17,
+      "robust_diversity": null,
+      "clusters": null
+    },
+    {
+      "problem_id": "energy_crisis",
+      "method": "ToT",
+      "accuracy": 0.1,
+      "error_rate": 0.9,
+      "diversity": 1.0,
+      "time_sec": 0.0,
+      "tokens": 15,
+      "robust_diversity": null,
+      "clusters": null
+    },
+    {
+      "problem_id": "energy_crisis",
+      "method": "GoT",
+      "accuracy": 0.0,
+      "error_rate": 1.0,
+      "diversity": 1.0,
+      "time_sec": 0.0,
+      "tokens": 14,
+      "robust_diversity": null,
+      "clusters": null
+    },
+    {
+      "problem_id": "energy_crisis",
+      "method": "ReAct",
+      "accuracy": 0.1,
+      "error_rate": 0.9,
+      "diversity": 0.985,
+      "time_sec": 0.0,
+      "tokens": 16,
+      "robust_diversity": null,
+      "clusters": null
+    },
+    {
+      "problem_id": "energy_crisis",
+      "method": "CPPTAI",
+      "accuracy": 0.6,
+      "error_rate": 0.4,
+      "diversity": 0.94,
+      "time_sec": 24.334,
+      "tokens": 535,
+      "robust_diversity": 0.773,
+      "clusters": 3
+    }
+  ],
+  "summary": {
+    "CoT": {
+      "accuracy": 0.0,
+      "error_rate": 1.0,
+      "diversity": 0.992,
+      "time_sec": 0.0,
+      "tokens": 17.0,
+      "robust_diversity": 0.0,
+      "clusters": 0.0
+    },
+    "ToT": {
+      "accuracy": 0.1,
+      "error_rate": 0.9,
+      "diversity": 1.0,
+      "time_sec": 0.0,
+      "tokens": 15.0,
+      "robust_diversity": 0.0,
+      "clusters": 0.0
+    },
+    "GoT": {
+      "accuracy": 0.0,
+      "error_rate": 1.0,
+      "diversity": 1.0,
+      "time_sec": 0.0,
+      "tokens": 14.0,
+      "robust_diversity": 0.0,
+      "clusters": 0.0
+    },
+    "ReAct": {
+      "accuracy": 0.1,
+      "error_rate": 0.9,
+      "diversity": 0.985,
+      "time_sec": 0.0,
+      "tokens": 16.0,
+      "robust_diversity": 0.0,
+      "clusters": 0.0
+    },
+    "CPPTAI": {
+      "accuracy": 0.6,
+      "error_rate": 0.4,
+      "diversity": 0.94,
+      "time_sec": 24.334,
+      "tokens": 535.0,
+      "robust_diversity": 0.773,
+      "clusters": 3.0
+    }
+  }
+}
