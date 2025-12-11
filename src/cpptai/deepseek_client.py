@@ -13,6 +13,8 @@ import ssl
 from typing import Dict, List, Optional
 from urllib.request import Request, urlopen
 from .env import load_env
+from pathlib import Path
+import hashlib
 
 
 DEEPSEEK_BASE_URL = "https://api.deepseek.com"
@@ -50,9 +52,11 @@ def deepseek_chat(
         "model": model,
         "messages": messages,
         "stream": stream,
+        "temperature": 0,
+        "seed": 0,
     }
 
-    data = json.dumps(body).encode("utf-8")
+    data = json.dumps(body, sort_keys=True).encode("utf-8")
 
     req = Request(url, data=data, method="POST")
     req.add_header("Content-Type", "application/json")
@@ -61,10 +65,26 @@ def deepseek_chat(
     # Create a default SSL context; can be customized if needed.
     context = ssl.create_default_context()
 
+    # Optional on-disk cache for determinism and rate safety
+    use_cache = os.getenv("DEEPSEEK_CACHE", "0") == "1"
+    cache_dir = Path(".cache")
+    cache_dir.mkdir(exist_ok=True)
+    cache_key = hashlib.sha256((url + data.decode("utf-8")).encode("utf-8")).hexdigest()
+    cache_path = cache_dir / f"deepseek_{cache_key}.json"
+
     try:
+        if use_cache and cache_path.exists():
+            return json.loads(cache_path.read_text(encoding="utf-8"))
         with urlopen(req, context=context, timeout=30) as resp:
             payload = resp.read().decode("utf-8")
-            return json.loads(payload)
+            parsed = json.loads(payload)
+            if use_cache:
+                # Write cache atomically where possible
+                try:
+                    cache_path.write_text(json.dumps(parsed, ensure_ascii=False), encoding="utf-8")
+                except Exception:
+                    pass
+            return parsed
     except Exception:
         # Intentionally do not log secrets or full error details; return None.
         return None

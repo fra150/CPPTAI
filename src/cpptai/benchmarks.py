@@ -16,33 +16,52 @@ import json
 import math
 import time
 from typing import Dict, List, Tuple
+import os
 
 from .core import CPPTAITraslocatore
 
 
-PROBLEMS: List[Dict] = [
-    {
-        "id": "energy_crisis",
-        "prompt": (
-            "How can we address the global energy crisis considering: "
-            "1) limits of renewables, 2) nuclear costs, 3) fossil dependency, "
-            "4) geopolitical factors, 5) a just transition for workers?"
-        ),
-        # Expected concepts for naïve accuracy scoring
-        "expected": [
-            "storage",
-            "smart grids",
-            "SMR",
-            "CCUS",
-            "electrification",
-            "methane",
-            "diplomacy",
-            "recycling",
-            "reserves",
-            "retraining",
-        ],
-    }
-]
+def build_problems(n: int = 50) -> List[Dict]:
+    regions = ["EU", "USA", "India", "China", "Brazil", "South Africa", "Japan", "Australia"]
+    caps = ["net-zero 2050", "-50% CO2 by 2035", "carbon budget 1.5C"]
+    mixes = ["renewables-heavy", "balanced", "nuclear-anchored"]
+    variants: List[Dict] = []
+    idx = 1
+    for r in regions:
+        for cap in caps:
+            for mix in mixes:
+                prompt = (
+                    f"Energy planning for {r}: constraints include 1) limits of renewables, 2) nuclear costs, "
+                    f"3) fossil dependency, 4) geopolitics. Target: {cap}. Preferred mix: {mix}. "
+                    f"Ensure a just transition for workers."
+                )
+                variants.append(
+                    {
+                        "id": f"energy_crisis_{idx}",
+                        "prompt": prompt,
+                        "expected": [
+                            "storage",
+                            "smart grids",
+                            "SMR",
+                            "CCUS",
+                            "electrification",
+                            "methane",
+                            "diplomacy",
+                            "recycling",
+                            "reserves",
+                            "retraining",
+                        ],
+                    }
+                )
+                idx += 1
+                if len(variants) >= n:
+                    return variants
+    return variants[:n]
+
+PROBLEMS: List[Dict] = build_problems(50)
+# Precompute prompt lengths to define normalized complexity per problem
+_PROMPT_LENGTHS = [len(p["prompt"].split()) for p in PROBLEMS]
+_MAX_PROMPT_LEN = max(_PROMPT_LENGTHS) if _PROMPT_LENGTHS else 1
 
 
 def shannon_entropy_norm(text: str) -> float:
@@ -60,12 +79,13 @@ def shannon_entropy_norm(text: str) -> float:
 
 
 def hash_embedding(text: str, dim: int = 128) -> List[float]:
+    import hashlib
     tokens = [t.lower() for t in text.split() if t]
     vec = [0.0] * dim
     for t in tokens:
-        h = abs(hash(t)) % dim
+        hbytes = hashlib.sha256(t.encode("utf-8")).digest()
+        h = int.from_bytes(hbytes[:4], "big") % dim
         vec[h] += 1.0
-    # L2 normalize
     norm = math.sqrt(sum(x * x for x in vec)) or 1.0
     return [x / norm for x in vec]
 
@@ -102,13 +122,34 @@ def kmeans(vectors: List[List[float]], k: int = 3, iters: int = 10) -> List[int]
     return assignments
 
 
-def naive_accuracy(text: str, expected: List[str]) -> float:
-    found = 0
+def rubric_accuracy(text: str, expected: List[str]) -> float:
+    """0–1 rubric score based on expected concept hits with partial credit.
+
+    Each expected concept contributes in {0, 0.5, 1} via exact or synonym match.
+    """
     lower = text.lower()
+    synonyms: Dict[str, List[str]] = {
+        "storage": ["batteries", "battery", "hydrogen storage", "pumped storage"],
+        "smart grids": ["grid modernization", "smart grid", "digital grid"],
+        "SMR": ["small modular reactor", "small modular reactors"],
+        "CCUS": ["carbon capture", "carbon storage", "ccs"],
+        "electrification": ["electrify", "evs", "heat pumps"],
+        "methane": ["ch4", "methane leak", "methane leakage"],
+        "diplomacy": ["international cooperation", "jetp", "energy diplomacy"],
+        "recycling": ["materials recycling", "recycle"],
+        "reserves": ["strategic reserves", "stockpile"],
+        "retraining": ["job training", "vocational", "reskilling"],
+    }
+    score = 0.0
     for key in expected:
-        if key.lower() in lower:
-            found += 1
-    return found / max(1, len(expected))
+        k = key.lower()
+        if k in lower:
+            score += 1.0
+        else:
+            syns = synonyms.get(k, [])
+            if any(s in lower for s in syns):
+                score += 0.5
+    return score / max(1, len(expected))
 
 
 def baseline_cot(problem: str) -> str:
@@ -148,6 +189,10 @@ def run_benchmarks() -> Tuple[List[Dict], Dict]:
         ("ReAct", baseline_react),
     ]
     orchestrator = CPPTAITraslocatore()
+    orchestrator_no_iv = CPPTAITraslocatore(enable_phase_iv=False)
+    orchestrator_no_i = CPPTAITraslocatore(enable_phase_i=False)
+    use_no_iv_main = os.getenv("BENCH_DISABLE_EXTERNAL", "0") == "1"
+    orchestrator_main = orchestrator_no_iv if use_no_iv_main else orchestrator
 
     for p in PROBLEMS:
         pid = p["id"]
@@ -156,66 +201,139 @@ def run_benchmarks() -> Tuple[List[Dict], Dict]:
 
         # Baselines
         for name, fn in methods:
+            for run in (1, 2, 3):
+                t0 = time.perf_counter()
+                out = fn(prompt)
+                dt = time.perf_counter() - t0
+                acc = rubric_accuracy(out, expected)
+                div = shannon_entropy_norm(out)
+                p_complexity = len(prompt.split()) / _MAX_PROMPT_LEN
+                records.append(
+                    {
+                        "problem_id": pid,
+                        "method": name,
+                        "accuracy": round(acc, 3),
+                        "error_rate": round(1.0 - acc, 3),
+                        "diversity": round(div, 3),
+                        "time_sec": round(dt, 3),
+                        "tokens": len(out.split()),
+                        "robust_diversity": None,
+                        "clusters": None,
+                        "problem_complexity": round(p_complexity, 3),
+                    }
+                )
+
+        # CPPTAI
+        for run in (1, 2, 3):
             t0 = time.perf_counter()
-            out = fn(prompt)
+            result = orchestrator_main.solve(prompt)
+            text = result.get("final_answer", "")
             dt = time.perf_counter() - t0
-            acc = naive_accuracy(out, expected)
-            div = shannon_entropy_norm(out)
+            acc = rubric_accuracy(text, expected)
+            div = shannon_entropy_norm(text)
+            method_texts = [
+                baseline_cot(prompt),
+                baseline_tot(prompt),
+                baseline_got(prompt),
+                baseline_react(prompt),
+                text,
+            ]
+            vecs = [hash_embedding(t) for t in method_texts]
+            assigns = kmeans(vecs, k=3, iters=10)
+            pairs = []
+            for i in range(len(vecs)):
+                for j in range(i + 1, len(vecs)):
+                    sim = cosine_similarity(vecs[i], vecs[j])
+                    dist = max(0.0, min(1.0, 1.0 - sim))
+                    pairs.append(dist)
+            robust_div = round((sum(pairs) / len(pairs)) if pairs else 0.0, 3)
+            cluster_count = len(set(assigns))
+            p_complexity = len(prompt.split()) / _MAX_PROMPT_LEN
+
             records.append(
                 {
                     "problem_id": pid,
-                    "method": name,
+                    "method": "CPPTAI",
                     "accuracy": round(acc, 3),
                     "error_rate": round(1.0 - acc, 3),
                     "diversity": round(div, 3),
                     "time_sec": round(dt, 3),
-                    "tokens": len(out.split()),
-                    "robust_diversity": None,
-                    "clusters": None,
+                    "tokens": len(text.split()),
+                    "robust_diversity": robust_div,
+                    "clusters": cluster_count,
+                    "problem_complexity": round(p_complexity, 3),
                 }
             )
 
-        # CPPTAI
-        t0 = time.perf_counter()
-        result = orchestrator.solve(prompt)
-        text = result.get("final_answer", "")
-        dt = time.perf_counter() - t0
-        acc = naive_accuracy(text, expected)
-        div = shannon_entropy_norm(text)
-        # CPPTAI detailed metrics
-        # Build embeddings for all method outputs (including CPPTAI) to compute cluster-based diversity.
-        method_texts = [
-            baseline_cot(prompt),
-            baseline_tot(prompt),
-            baseline_got(prompt),
-            baseline_react(prompt),
-            text,
-        ]
-        vecs = [hash_embedding(t) for t in method_texts]
-        assigns = kmeans(vecs, k=3, iters=10)
-        # robust diversity: mean pairwise cosine distance, clamped to [0,1]
-        pairs = []
-        for i in range(len(vecs)):
-            for j in range(i + 1, len(vecs)):
-                sim = cosine_similarity(vecs[i], vecs[j])
-                dist = max(0.0, min(1.0, 1.0 - sim))
-                pairs.append(dist)
-        robust_div = round((sum(pairs) / len(pairs)) if pairs else 0.0, 3)
-        cluster_count = len(set(assigns))
+        # Ablation: no Phase IV
+        for run in (1, 2, 3):
+            t0 = time.perf_counter()
+            result = orchestrator_no_iv.solve(prompt)
+            text = result.get("final_answer", "")
+            dt = time.perf_counter() - t0
+            acc = rubric_accuracy(text, expected)
+            div = shannon_entropy_norm(text)
+            method_texts = [baseline_cot(prompt), baseline_tot(prompt), baseline_got(prompt), baseline_react(prompt), text]
+            vecs = [hash_embedding(t) for t in method_texts]
+            assigns = kmeans(vecs, k=3, iters=10)
+            pairs = []
+            for i in range(len(vecs)):
+                for j in range(i + 1, len(vecs)):
+                    sim = cosine_similarity(vecs[i], vecs[j])
+                    dist = max(0.0, min(1.0, 1.0 - sim))
+                    pairs.append(dist)
+            robust_div = round((sum(pairs) / len(pairs)) if pairs else 0.0, 3)
+            cluster_count = len(set(assigns))
+            p_complexity = len(prompt.split()) / _MAX_PROMPT_LEN
+            records.append(
+                {
+                    "problem_id": pid,
+                    "method": "CPPTAI_no_IV",
+                    "accuracy": round(acc, 3),
+                    "error_rate": round(1.0 - acc, 3),
+                    "diversity": round(div, 3),
+                    "time_sec": round(dt, 3),
+                    "tokens": len(text.split()),
+                    "robust_diversity": robust_div,
+                    "clusters": cluster_count,
+                    "problem_complexity": round(p_complexity, 3),
+                }
+            )
 
-        records.append(
-            {
-                "problem_id": pid,
-                "method": "CPPTAI",
-                "accuracy": round(acc, 3),
-                "error_rate": round(1.0 - acc, 3),
-                "diversity": round(div, 3),
-                "time_sec": round(dt, 3),
-                "tokens": len(text.split()),
-                "robust_diversity": robust_div,
-                "clusters": cluster_count,
-            }
-        )
+        # Ablation: no Phase I
+        for run in (1, 2, 3):
+            t0 = time.perf_counter()
+            result = orchestrator_no_i.solve(prompt)
+            text = result.get("final_answer", "")
+            dt = time.perf_counter() - t0
+            acc = rubric_accuracy(text, expected)
+            div = shannon_entropy_norm(text)
+            method_texts = [baseline_cot(prompt), baseline_tot(prompt), baseline_got(prompt), baseline_react(prompt), text]
+            vecs = [hash_embedding(t) for t in method_texts]
+            assigns = kmeans(vecs, k=3, iters=10)
+            pairs = []
+            for i in range(len(vecs)):
+                for j in range(i + 1, len(vecs)):
+                    sim = cosine_similarity(vecs[i], vecs[j])
+                    dist = max(0.0, min(1.0, 1.0 - sim))
+                    pairs.append(dist)
+            robust_div = round((sum(pairs) / len(pairs)) if pairs else 0.0, 3)
+            cluster_count = len(set(assigns))
+            p_complexity = len(prompt.split()) / _MAX_PROMPT_LEN
+            records.append(
+                {
+                    "problem_id": pid,
+                    "method": "CPPTAI_no_I",
+                    "accuracy": round(acc, 3),
+                    "error_rate": round(1.0 - acc, 3),
+                    "diversity": round(div, 3),
+                    "time_sec": round(dt, 3),
+                    "tokens": len(text.split()),
+                    "robust_diversity": robust_div,
+                    "clusters": cluster_count,
+                    "problem_complexity": round(p_complexity, 3),
+                }
+            )
 
     # Aggregate summary per method (mean across problems)
     summary: Dict[str, Dict] = {}
@@ -253,6 +371,7 @@ def run_benchmarks() -> Tuple[List[Dict], Dict]:
                 "tokens",
                 "robust_diversity",
                 "clusters",
+                "problem_complexity",
             ],
         )
         writer.writeheader()
@@ -261,5 +380,58 @@ def run_benchmarks() -> Tuple[List[Dict], Dict]:
     # Save JSON
     with open("benchmarks.json", "w", encoding="utf-8") as f:
         json.dump({"records": records, "summary": summary}, f, ensure_ascii=False, indent=2)
+
+    # Save summary CSV for LaTeX plots
+    with open("benchmarks_summary.csv", "w", encoding="utf-8", newline="") as f:
+        writer = csv.DictWriter(
+            f,
+            fieldnames=[
+                "method",
+                "accuracy",
+                "error_rate",
+                "diversity",
+                "time_sec",
+                "tokens",
+                "robust_diversity",
+                "clusters",
+            ],
+        )
+        writer.writeheader()
+        rows = [{"method": m, **vals} for m, vals in summary.items()]
+        writer.writerows(rows)
+
+    # Save cumulative accuracy series per method vs problem complexity
+    with open("cumulative_accuracy.csv", "w", encoding="utf-8", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=["method", "complexity", "cumulative_accuracy"])
+        writer.writeheader()
+        for m, arr in by_method.items():
+            arr_sorted = sorted(arr, key=lambda x: x.get("problem_complexity", 0.0))
+            cum_acc = 0.0
+            for i, rec in enumerate(arr_sorted, start=1):
+                cum_acc += rec["accuracy"]
+                writer.writerow(
+                    {
+                        "method": m,
+                        "complexity": rec.get("problem_complexity", 0.0),
+                        "cumulative_accuracy": round(cum_acc / i, 3),
+                    }
+                )
+
+    # Save error matrix by phase/method tag for heatmap generation
+    def _phase_tag(method: str) -> str:
+        if method == "CPPTAI":
+            return "Full"
+        if method == "CPPTAI_no_IV":
+            return "No_IV"
+        if method == "CPPTAI_no_I":
+            return "No_I"
+        return "Baseline"
+
+    with open("error_by_phase.csv", "w", encoding="utf-8", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=["method", "phase", "mean_error_rate"])
+        writer.writeheader()
+        for m, arr in by_method.items():
+            mean_err = sum(x["error_rate"] for x in arr) / len(arr)
+            writer.writerow({"method": m, "phase": _phase_tag(m), "mean_error_rate": round(mean_err, 3)})
 
     return records, summary

@@ -1,8 +1,7 @@
 """Core CPPTAI framework implementation.
-This module implements the four-phase architecture described in the provided
-document: Entropic Segregation, Vertical Topology, Cognitive Descent, and
-External Convergence. It also includes scoring, semantic gradient, and
-consistency checks. All code and comments are in English.
+Implements a five-phase framework: Entropic Segregation (I), Vertical Topology
+(II), Cognitive Descent (III), External Convergence (IV), and Presentation (V).
+Includes scoring, semantic gradient, consistency checks, and persistence.
 """
 
 from __future__ import annotations
@@ -77,6 +76,7 @@ class EntropicSegregator:
             length = len(s)
             complexity = max(0.0, min(1.0, length / 200.0))
             solvability = max(0.0, min(1.0, 1.0 - complexity * 0.5))
+            improb = max(0.0, min(1.0, 1.0 - solvability))
             if complexity >= 0.85:
                 level = DifficultyLevel.IMPOSSIBLE
             elif complexity >= 0.7:
@@ -96,6 +96,8 @@ class EntropicSegregator:
                     difficulty=level,
                     complexity_score=complexity,
                     solution_probability=solvability,
+                    improbability=improb,
+                    floor_index=0,
                     dependencies=[],
                 )
             )
@@ -132,6 +134,16 @@ class VerticalTopology:
     def get_floor_abstraction(self, floor: int, total_floors: int) -> float:
         return floor / total_floors if total_floors > 0 else 0.0
 
+    def assign_floors(self, blocks: List[ProblemBlock], total_floors: Optional[int] = None) -> None:
+        """Assign each block to a floor index based on its complexity.
+
+        Floor indices increase with complexity; ties are resolved by order.
+        """
+        tf = total_floors or self.calculate_building_height(blocks)
+        tf = max(1, tf)
+        for i, b in enumerate(blocks):
+            b.floor_index = max(0, min(tf, int(round(b.complexity_score * tf))))
+
 
 class DescentVector:
     """Phase III: Cognitive Descent – traverse floors from high to ground."""
@@ -151,10 +163,17 @@ class DescentVector:
             **initial_context,
         }
         descent_log: List[Dict] = []
+        semantic = SemanticGradient()
 
         while current_floor >= 0:
             variant = self._generate_floor_variant(current_floor, solution_state, building_height)
-            solution_state = self._descent_equation(solution_state, variant)
+            # Combine structural variant with semantic gradient extracted from the variant rationale.
+            sem_grad = semantic.compute_gradient(solution_state, f"Floor {current_floor} variant")
+            blended = {
+                k: (variant.get(k, 0.0) + sem_grad.get(k, 0.0)) / 2.0
+                for k in ("coherence", "completeness", "confidence")
+            }
+            solution_state = self._descent_equation(solution_state, blended)
             entry = {
                 "floor": current_floor,
                 "timestamp": self._get_timestamp(),
@@ -175,9 +194,9 @@ class DescentVector:
     def _descent_equation(self, S_t: Dict, gradient: Dict) -> Dict:
         new_state = S_t.copy()
         for key in ("coherence", "completeness", "confidence"):
-            new_state[key] = max(0.0, min(1.0, new_state.get(key, 0.0) + self.learning_rate * gradient.get(key, 0.0)))
-        for key in ("coherence", "completeness", "confidence"):
-            new_state[key] *= (1 - self.regularization)
+            base = new_state.get(key, 0.0)
+            inc = self.learning_rate * gradient.get(key, 0.0) * (1 - self.regularization)
+            new_state[key] = max(0.0, min(1.0, base + inc))
         return new_state
 
     def _generate_floor_variant(self, floor: int, state: Dict, total: int) -> Dict:
@@ -229,7 +248,9 @@ class ConvergenceProtocol:
         return self._synthesize_external_responses(responses)
 
     def _query_digital_oracle(self, ctx: Dict) -> Dict:
-        return {"source": "web", "content": "Web search stub", "confidence": 0.4}
+        content = "Web search stub"
+        conf = self._compute_confidence(content, source="web")
+        return {"source": "web", "content": content, "confidence": conf}
 
     def _query_divergent_twin(self, ctx: Dict) -> Dict:
         prompt = ctx.get("problem", "Explain the problem.")
@@ -244,19 +265,38 @@ class ConvergenceProtocol:
             text = extract_text_answer(resp) if resp else None
             if text:
                 break
-        return {"source": "deepseek", "content": text or "", "confidence": 0.6 if text else 0.2}
+        content = text or ""
+        conf = self._compute_confidence(content, source="deepseek")
+        return {"source": "deepseek", "content": content, "confidence": conf}
 
     def _query_collective_consciousness(self, ctx: Dict) -> Dict:
-        return {"source": "social", "content": "Social signals stub", "confidence": 0.3}
+        content = "Social signals stub"
+        conf = self._compute_confidence(content, source="social")
+        return {"source": "social", "content": content, "confidence": conf}
 
     def _query_empirical_archive(self, ctx: Dict) -> Dict:
-        return {"source": "science", "content": "Scientific DB stub", "confidence": 0.5}
+        content = "Scientific DB stub"
+        conf = self._compute_confidence(content, source="science")
+        return {"source": "science", "content": content, "confidence": conf}
 
     def _query_divine_input(self, ctx: Dict) -> Dict:
-        return {"source": "human", "content": "Human-in-the-loop stub", "confidence": 0.8}
+        content = "Human-in-the-loop stub"
+        conf = self._compute_confidence(content, source="human")
+        return {"source": "human", "content": content, "confidence": conf}
 
     def _evaluate_response_confidence(self, response: Dict) -> float:
         return float(response.get("confidence", 0.0))
+
+    def _compute_confidence(self, content: str, source: str) -> float:
+        length_signal = max(0.0, min(1.0, len(content.split()) / 50.0))
+        source_weight = {
+            "web": 0.5,
+            "deepseek": 0.7,
+            "social": 0.4,
+            "science": 0.6,
+            "human": 0.8,
+        }.get(source, 0.5)
+        return max(0.0, min(1.0, source_weight * length_signal))
 
     def _synthesize_external_responses(self, responses: Dict[str, Dict]) -> Dict:
         order = [
@@ -396,33 +436,80 @@ class ConsistencyEnforcer:
 class CPPTAITraslocatore:
     """Integrated system that orchestrates all phases end-to-end."""
 
-    def __init__(self):
+    def __init__(
+        self,
+        enable_phase_i: bool = True,
+        enable_phase_ii: bool = True,
+        enable_phase_iii: bool = True,
+        enable_phase_iv: bool = True,
+        enable_phase_v: bool = True,
+    ):
         self.segregator = EntropicSegregator()
         self.topology = VerticalTopology()
         self.descent = DescentVector()
         self.convergence = ConvergenceProtocol()
+        self.enable_phase_i = enable_phase_i
+        self.enable_phase_ii = enable_phase_ii
+        self.enable_phase_iii = enable_phase_iii
+        self.enable_phase_iv = enable_phase_iv
+        self.enable_phase_v = enable_phase_v
         self.long_term_memory: List[Dict] = []
         self.raw_data_log: List[Dict] = []
 
     def solve(self, problem: str, max_iterations: int = 100) -> Dict:
-        blocks = self.segregator.segregate(problem)
-        linear_solutions = [self.segregator.solve_linear_cot(b) for b in blocks]
-        building_height = self.topology.calculate_building_height(blocks)
+        blocks: List[ProblemBlock]
+        if self.enable_phase_i:
+            blocks = self.segregator.segregate(problem)
+            linear_solutions = [self.segregator.solve_linear_cot(b) for b in blocks]
+        else:
+            # Single block fallback when Phase I is disabled
+            blocks = [
+                ProblemBlock(
+                    id="B1",
+                    content=problem,
+                    difficulty=DifficultyLevel.NORMAL,
+                    complexity_score=0.5,
+                    solution_probability=0.5,
+                    improbability=0.5,
+                    floor_index=0,
+                    dependencies=[],
+                )
+            ]
+            linear_solutions = []
+
+        if self.enable_phase_ii:
+            building_height = self.topology.calculate_building_height(blocks)
+            self.topology.assign_floors(blocks, building_height)
+        else:
+            building_height = 1
+
         initial_context = {
             "problem": problem,
             "block_solutions": linear_solutions,
             "building_height": building_height,
         }
-        try:
-            descent_result = self.descent.cognitive_descent(building_height, initial_context)
-            if self._calculate_solution_confidence(descent_result.get("final_answer", "")) >= 0.8:
-                enriched = {**descent_result, "tasks": generate_informatics_tasks(10)}
-                self._archive_complete_process(enriched)
-                return enriched
-        except Exception:
-            pass
-        external_solution = self.convergence.convene_meeting(initial_context)
-        final_result = self._integrate_solutions(descent_result if "descent_result" in locals() else None, external_solution)
+
+        descent_result: Optional[Dict] = None
+        if self.enable_phase_iii:
+            try:
+                descent_result = self.descent.cognitive_descent(building_height, initial_context)
+                if self._calculate_solution_confidence(descent_result.get("final_answer", "")) >= 0.8:
+                    enriched = {**descent_result}
+                    if self.enable_phase_v:
+                        arranged = arrange_solution_simple(enriched.get("final_answer", ""), context="technical")
+                        enriched["final_arranged"] = arranged
+                    enriched["tasks"] = generate_informatics_tasks(10)
+                    self._archive_complete_process(enriched)
+                    return enriched
+            except Exception:
+                descent_result = None
+
+        external_solution: Dict = {"external_synthesis": "", "responses": {}, "confidence": 0.0}
+        if self.enable_phase_iv:
+            external_solution = self.convergence.convene_meeting(initial_context)
+        final_result = self._integrate_solutions(descent_result, external_solution)
+        if self.enable_phase_v:
+            final_result["final_arranged"] = arrange_solution_simple(final_result.get("final_answer", ""), context="technical")
         final_result["tasks"] = generate_informatics_tasks(10)
         self._archive_complete_process(final_result)
         return final_result

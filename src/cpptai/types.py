@@ -29,6 +29,8 @@ class ProblemBlock:
         difficulty: Coarse difficulty level for sorting and reporting.
         complexity_score: Continuous [0, 1] score estimating inherent complexity.
         solution_probability: Continuous [0, 1] score estimating solvability.
+        improbability: Continuous [0, 1] score = 1 - solution_probability.
+        floor_index: Integer floor assigned in Vertical Topology (Phase II).
         dependencies: IDs of other blocks this block depends on.
     """
 
@@ -37,5 +39,7 @@ class ProblemBlock:
     difficulty: DifficultyLevel
     complexity_score: float
     solution_probability: float
+    improbability: float
+    floor_index: int = 0
     dependencies: List[str] = field(default_factory=list)
 
