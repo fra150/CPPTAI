@@ -57,7 +57,6 @@ def deepseek_chat(
     }
 
     data = json.dumps(body, sort_keys=True).encode("utf-8")
-
     req = Request(url, data=data, method="POST")
     req.add_header("Content-Type", "application/json")
     req.add_header("Authorization", f"Bearer {api_key}")
@@ -65,7 +64,6 @@ def deepseek_chat(
     # Create a default SSL context; can be customized if needed.
     context = ssl.create_default_context()
 
-    # Optional on-disk cache for determinism and rate safety
     use_cache = os.getenv("DEEPSEEK_CACHE", "0") == "1"
     cache_dir = Path(".cache")
     cache_dir.mkdir(exist_ok=True)
@@ -79,7 +77,6 @@ def deepseek_chat(
             payload = resp.read().decode("utf-8")
             parsed = json.loads(payload)
             if use_cache:
-                # Write cache atomically where possible
                 try:
                     cache_path.write_text(json.dumps(parsed, ensure_ascii=False), encoding="utf-8")
                 except Exception:

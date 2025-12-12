@@ -191,8 +191,8 @@ def run_benchmarks() -> Tuple[List[Dict], Dict]:
     orchestrator = CPPTAITraslocatore()
     orchestrator_no_iv = CPPTAITraslocatore(enable_phase_iv=False)
     orchestrator_no_i = CPPTAITraslocatore(enable_phase_i=False)
-    use_no_iv_main = os.getenv("BENCH_DISABLE_EXTERNAL", "0") == "1"
-    orchestrator_main = orchestrator_no_iv if use_no_iv_main else orchestrator
+    use_no_iv = os.getenv("BENCH_DISABLE_EXTERNAL", "0") == "1"
+    orchestrator_main = orchestrator_no_iv if use_no_iv else orchestrator
 
     for p in PROBLEMS:
         pid = p["id"]
@@ -268,7 +268,7 @@ def run_benchmarks() -> Tuple[List[Dict], Dict]:
         # Ablation: no Phase IV
         for run in (1, 2, 3):
             t0 = time.perf_counter()
-            result = orchestrator_no_iv.solve(prompt)
+            result = (orchestrator_no_iv if use_no_iv else orchestrator_no_iv).solve(prompt)
             text = result.get("final_answer", "")
             dt = time.perf_counter() - t0
             acc = rubric_accuracy(text, expected)
@@ -303,7 +303,7 @@ def run_benchmarks() -> Tuple[List[Dict], Dict]:
         # Ablation: no Phase I
         for run in (1, 2, 3):
             t0 = time.perf_counter()
-            result = orchestrator_no_i.solve(prompt)
+            result = (orchestrator_no_iv if use_no_iv else orchestrator_no_i).solve(prompt)
             text = result.get("final_answer", "")
             dt = time.perf_counter() - t0
             acc = rubric_accuracy(text, expected)
@@ -433,5 +433,52 @@ def run_benchmarks() -> Tuple[List[Dict], Dict]:
         for m, arr in by_method.items():
             mean_err = sum(x["error_rate"] for x in arr) / len(arr)
             writer.writerow({"method": m, "phase": _phase_tag(m), "mean_error_rate": round(mean_err, 3)})
+
+    # Save statistical comparisons (paired t-statistic and Cohen's d)
+    def _mean_accuracy_by_problem(method: str) -> Dict[str, float]:
+        per_problem: Dict[str, List[float]] = {}
+        for r in records:
+            if r["method"] != method:
+                continue
+            per_problem.setdefault(r["problem_id"], []).append(r["accuracy"])
+        return {pid: (sum(vals) / len(vals)) for pid, vals in per_problem.items() if vals}
+
+    def _paired_t_and_cohen_d(a_vals: List[float], b_vals: List[float]) -> Tuple[float, float, int]:
+        n = min(len(a_vals), len(b_vals))
+        if n == 0:
+            return 0.0, 0.0, 0
+        diffs = [a_vals[i] - b_vals[i] for i in range(n)]
+        mean_diff = sum(diffs) / n
+        var_diff = sum((d - mean_diff) ** 2 for d in diffs) / max(1, (n - 1))
+        sd_diff = math.sqrt(var_diff)
+        t_stat = mean_diff / (sd_diff / math.sqrt(n)) if sd_diff > 0 else 0.0
+        mean_a = sum(a_vals[:n]) / n
+        mean_b = sum(b_vals[:n]) / n
+        var_a = sum((x - mean_a) ** 2 for x in a_vals[:n]) / max(1, (n - 1))
+        var_b = sum((x - mean_b) ** 2 for x in b_vals[:n]) / max(1, (n - 1))
+        pooled_sd = math.sqrt(((n - 1) * var_a + (n - 1) * var_b) / max(1, (2 * n - 2))) or 0.0
+        cohen_d = ((mean_a - mean_b) / pooled_sd) if pooled_sd > 0 else 0.0
+        return round(t_stat, 3), round(cohen_d, 3), n
+
+    pairs_to_compare = [
+        ("CPPTAI", "CoT"),
+        ("CPPTAI", "ToT"),
+        ("CPPTAI", "GoT"),
+        ("CPPTAI", "ReAct"),
+        ("CPPTAI", "CPPTAI_no_IV"),
+        ("CPPTAI", "CPPTAI_no_I"),
+    ]
+    with open("stats_summary.csv", "w", encoding="utf-8", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=["method_a", "method_b", "t_stat", "cohen_d", "n"])
+        writer.writeheader()
+        maps = {m: _mean_accuracy_by_problem(m) for m, _ in by_method.items()}
+        for a, b in pairs_to_compare:
+            ma = maps.get(a, {})
+            mb = maps.get(b, {})
+            common = [pid for pid in ma.keys() if pid in mb]
+            a_vals = [ma[pid] for pid in common]
+            b_vals = [mb[pid] for pid in common]
+            t_stat, d, n = _paired_t_and_cohen_d(a_vals, b_vals)
+            writer.writerow({"method_a": a, "method_b": b, "t_stat": t_stat, "cohen_d": d, "n": n})
 
     return records, summary

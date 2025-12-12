@@ -43,6 +43,7 @@ htmlcov/
 .coverage
 .coverage.*
 .cache
+.cache/
 nosetests.xml
 coverage.xml
 *.cover
@@ -50,6 +51,18 @@ coverage.xml
 .hypothesis/
 .pytest_cache/
 cover/
+
+# Project artifacts
+*.pyc
+src/**/__pycache__/
+benchmarks.csv
+benchmarks.json
+benchmarks_summary.csv
+cumulative_accuracy.csv
+error_by_phase.csv
+stats_summary.csv
+memoria.json
+ragionamenti.csv
 
 # Translations
 *.mo

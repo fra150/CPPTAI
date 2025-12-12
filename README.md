@@ -71,5 +71,15 @@ Python framework (standard library only) for a 5‑phase cognitive pipeline, Dee
 - Import errors in tests: ensure `src` is on `PYTHONPATH` or use the commands above; tests already include a local path fix.
 - No response from DeepSeek: verify `DEEPSEEK_API_KEY` in `.env` and connectivity.
 
+## Availability
+- Repository: https://github.com/fra150/CPPTAI
+
+## Generate Benchmarks and Figures
+- Disable external calls if needed: PowerShell `$env:BENCH_DISABLE_EXTERNAL=1; python .\src\main.py`
+- Outputs:
+  - `benchmarks.csv`, `benchmarks_summary.csv`, `benchmarks.json`
+  - `cumulative_accuracy.csv`, `error_by_phase.csv`, `stats_summary.csv`
+- Compile LaTeX: `pdflatex research.tex` (twice for references).
+
 ## License
 - MIT open‑source
