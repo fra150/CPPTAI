@@ -154,6 +154,7 @@ class DescentVector:
         self.regularization = regularization
         self.memory_dump: List[Dict] = []
         self.possible_solutions: List[str] = []
+        self.attribution_log: List[Dict] = []
 
     def cognitive_descent(self, building_height: int, initial_context: Dict) -> Dict:
         current_floor = building_height
@@ -165,6 +166,12 @@ class DescentVector:
         }
         descent_log: List[Dict] = []
         semantic = SemanticGradient()
+        blocks: List[ProblemBlock] = initial_context.get("blocks", [])
+        base_S = (
+            float(solution_state.get("coherence", 0.0))
+            + float(solution_state.get("completeness", 0.0))
+            + float(solution_state.get("confidence", 0.0))
+        ) / 3.0
 
         while current_floor >= 0:
             variant = self._generate_floor_variant(current_floor, solution_state, building_height)
@@ -174,7 +181,27 @@ class DescentVector:
                 k: (variant.get(k, 0.0) + sem_grad.get(k, 0.0)) / 2.0
                 for k in ("coherence", "completeness", "confidence")
             }
+            before = (
+                float(solution_state.get("coherence", 0.0))
+                + float(solution_state.get("completeness", 0.0))
+                + float(solution_state.get("confidence", 0.0))
+            ) / 3.0
             solution_state = self._descent_equation(solution_state, blended)
+            after = (
+                float(solution_state.get("coherence", 0.0))
+                + float(solution_state.get("completeness", 0.0))
+                + float(solution_state.get("confidence", 0.0))
+            ) / 3.0
+            delta = round(after - before, 6)
+            candidates = [b for b in blocks if int(getattr(b, "floor_index", 0)) >= int(current_floor)] or blocks
+            total_w = sum(float(getattr(b, "complexity_score", 0.0)) for b in candidates) or 1.0
+            influences: List[Tuple[str, float]] = []
+            for b in candidates:
+                w = float(getattr(b, "complexity_score", 0.0)) / total_w
+                infl = round(delta * w, 6)
+                b.influence_score = float(getattr(b, "influence_score", 0.0)) + infl
+                influences.append((b.id, infl))
+            self.attribution_log.append({"floor": current_floor, "delta_S": delta, "influences": influences})
             entry = {
                 "floor": current_floor,
                 "timestamp": self._get_timestamp(),
@@ -186,10 +213,26 @@ class DescentVector:
             current_floor -= 1
 
         final_answer = self._collapse_solution(descent_log)
+        explanation_lines: List[str] = []
+        for a in self.attribution_log:
+            pairs = ", ".join([f"{bid}:{val:+.3f}" for bid, val in a.get("influences", [])])
+            explanation_lines.append(f"Floor {a['floor']}: ΔS={a['delta_S']:+.3f} → {pairs}")
+        attribution_explanation = "\n".join(explanation_lines)
+        floors_logged = [int(x.get("floor", 0)) for x in self.attribution_log]
+        s_without = None
+        if 5 in floors_logged:
+            s_without = base_S + sum(float(a.get("delta_S", 0.0)) for a in self.attribution_log if int(a.get("floor", 0)) != 5)
+        elif floors_logged:
+            skip_f = max(floors_logged)
+            s_without = base_S + sum(float(a.get("delta_S", 0.0)) for a in self.attribution_log if int(a.get("floor", 0)) != skip_f)
+        counterfactual_summary = f"If we skipped floor 5, S would be ≈ {s_without:.3f}" if s_without is not None else ""
         return {
             "final_answer": final_answer,
             "descent_log": descent_log,
             "possible_solutions": self.possible_solutions,
+            "attribution_log": self.attribution_log,
+            "attribution_explanation": attribution_explanation,
+            "counterfactual_summary": counterfactual_summary,
         }
 
     def _descent_equation(self, S_t: Dict, gradient: Dict) -> Dict:
@@ -488,6 +531,7 @@ class CPPTAITraslocatore:
             "problem": problem,
             "block_solutions": linear_solutions,
             "building_height": building_height,
+            "blocks": blocks,
         }
 
         descent_result: Optional[Dict] = None
@@ -510,7 +554,15 @@ class CPPTAITraslocatore:
             external_solution = self.convergence.convene_meeting(initial_context)
         final_result = self._integrate_solutions(descent_result, external_solution)
         if self.enable_phase_v:
-            final_result["final_arranged"] = arrange_solution_simple(final_result.get("final_answer", ""), context="technical")
+            arranged = arrange_solution_simple(final_result.get("final_answer", ""), context="technical")
+            attrib_text = final_result.get("attribution_explanation", "")
+            cf_text = final_result.get("counterfactual_summary", "")
+            extra = ""
+            if attrib_text:
+                extra += "\n\n## Attribution\n" + attrib_text
+            if cf_text:
+                extra += "\n\n## Counterfactual\n" + cf_text
+            final_result["final_arranged"] = arranged + extra
         final_result["tasks"] = generate_informatics_tasks(10)
         self._archive_complete_process(final_result)
         return final_result

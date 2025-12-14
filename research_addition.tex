@@ -1,0 +1,27 @@
+\section*{Attribution Mechanism (Addendum)}
+We propose an attribution mechanism to increase auditability of CPPTAI:
+
+\textbf{What to Track}
+- Which blocks caused the solution state $S$ to increase or decrease at each floor.
+- Counterfactual analysis: estimates of $S$ if a given floor were skipped.
+- Visual explanation: descent trajectory with annotated decision points.
+
+\textbf{Implementation}
+- Extend \texttt{ProblemBlock} with an \texttt{influence\_score}.
+- Track gradient attributions during Phase~III (Cognitive Descent).
+- Generate a human-readable explanation alongside the final solution output.
+
+\textbf{Impact}
+Strengthens auditability for high-stakes domains (healthcare, legal, finance) where black-box reasoning is unacceptable.
+
+\section*{Latest Results}
+With \texttt{BENCH\_DISABLE\_EXTERNAL=1}, the benchmark summary is:
+- CoT: accuracy $0.0$, error $1.0$, diversity $\approx 0.992$, time $0.0$ s.
+- ToT: accuracy $0.1$, error $0.9$, diversity $1.0$, time $0.0$ s.
+- GoT: accuracy $0.0$, error $1.0$, diversity $1.0$, time $0.0$ s.
+- ReAct: accuracy $0.1$, error $0.9$, diversity $\approx 0.985$, time $0.0$ s.
+- CPPTAI: accuracy $1.0$, error $0.0$, diversity $\approx 0.992$, robust diversity $\approx 0.812$, clusters $3$.
+- CPPTAI\_no\_IV: accuracy $1.0$, error $0.0$, same diversity/robustness; time slightly different.
+- CPPTAI\_no\_I: accuracy $1.0$, error $0.0$, same diversity/robustness; time slightly different.
+
+Paired comparisons in \texttt{stats\_summary.csv} include $t$-statistic, Cohen's $d$, and an approximate two-sided $p$-value; ablation comparisons currently yield near-zero $t$/$d$ and $p\approx 1$ due to identical accuracy.

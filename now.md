@@ -81,10 +81,8 @@ Goal: obtain non-trivial numbers and meaningful differences.
    - Keep them deterministic so that benchmarks remain reproducible.
 
 ### Step C — Complete statistics (p-values)
-- `stats_summary.csv` currently includes t-statistic and Cohen’s d.
-- For classical “significance” reporting, we would also compute p-values.
-  - Without external dependencies, we can add a simple approximation of the Student-t CDF (or use a normal approximation for n=50).
-  - Alternatively, we could explicitly add a dependency such as `scipy`, but this would break the “standard library only” constraint and must be a conscious decision.
+- `stats_summary.csv` now includes t-statistic, Cohen’s d, and an approximate two-sided p-value (normal approximation via `erf`).
+- If we require exact Student-t, we can add a small t-CDF later or accept a dependency like `scipy`.
 
 ### Step D — Full walkthrough in the paper (with real output)
 - The paper already describes the five phases and includes plots from real CSVs.
@@ -107,4 +105,12 @@ Goal: obtain non-trivial numbers and meaningful differences.
 - [x] Remove debug narrative such as “with API key set”.
 - [x] Insert the GitHub link.
 - [x] Make accuracy non-flat for CPPTAI under `BENCH_DISABLE_EXTERNAL=1`.
-- [ ] Add p-values to `stats_summary.csv` (if we decide to go beyond standard library only).
+- [x] Add p-values to `stats_summary.csv` (normal approximation, standard library only).
+
+## 5) New: Attribution Mechanism
+- Added an attribution mechanism in Phase III to track which blocks influence the solution state at each floor.
+- Implementation:
+  - Extended `ProblemBlock` with `influence_score` (`src/cpptai/types.py:37–44`).
+  - Tracked gradient attributions during descent and built a per-floor log with deltas and influences (`src/cpptai/core.py:156–193`).
+  - Emitted a human-readable attribution explanation appended to the arranged output (`src/cpptai/core.py:510–516`).
+- Impact: improves auditability for high-stakes domains (healthcare, legal, finance).

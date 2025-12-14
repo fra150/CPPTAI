@@ -468,8 +468,16 @@ def run_benchmarks() -> Tuple[List[Dict], Dict]:
         ("CPPTAI", "CPPTAI_no_IV"),
         ("CPPTAI", "CPPTAI_no_I"),
     ]
+    def _normal_cdf(z: float) -> float:
+        return 0.5 * (1.0 + math.erf(z / math.sqrt(2.0)))
+
+    def _p_value_from_t(t: float, n: int) -> float:
+        z = abs(t)
+        p = 2.0 * (1.0 - _normal_cdf(z))
+        return round(max(0.0, min(1.0, p)), 6)
+
     with open("stats_summary.csv", "w", encoding="utf-8", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=["method_a", "method_b", "t_stat", "cohen_d", "n"])
+        writer = csv.DictWriter(f, fieldnames=["method_a", "method_b", "t_stat", "cohen_d", "n", "p_value"])
         writer.writeheader()
         maps = {m: _mean_accuracy_by_problem(m) for m, _ in by_method.items()}
         for a, b in pairs_to_compare:
@@ -479,6 +487,7 @@ def run_benchmarks() -> Tuple[List[Dict], Dict]:
             a_vals = [ma[pid] for pid in common]
             b_vals = [mb[pid] for pid in common]
             t_stat, d, n = _paired_t_and_cohen_d(a_vals, b_vals)
-            writer.writerow({"method_a": a, "method_b": b, "t_stat": t_stat, "cohen_d": d, "n": n})
+            p = _p_value_from_t(t_stat, n)
+            writer.writerow({"method_a": a, "method_b": b, "t_stat": t_stat, "cohen_d": d, "n": n, "p_value": p})
 
     return records, summary

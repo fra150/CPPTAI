@@ -280,11 +280,15 @@ All plots below are generated from CSV artifacts produced by \texttt{src/cpptai/
   columns/t_stat/.style={fixed, precision=3},
   columns/cohen_d/.style={fixed, precision=3},
   columns/n/.style={int},
-  columns={method_a,method_b,t_stat,cohen_d,n},
+  columns/p_value/.style={fixed, precision=6},
+  columns={method_a,method_b,t_stat,cohen_d,n,p_value},
 ]{\statdata}
 
 \subsection*{Results Summary (\texttt{BENCH\_DISABLE\_EXTERNAL=1})}
 With external calls disabled, CPPTAI achieves mean accuracy $1.0$ on all 50 energy-planning variants, while baselines remain low (CoT/GoT at $0.0$, ToT/ReAct at $0.1$). This separation arises from a deterministic presentation layer that enriches the final answer with key energy-portfolio concepts (storage and smart grids, SMR and CCUS, electrification, supply diversification, recycling, and just transition), ensuring full rubric coverage even without Phase~IV. All tables and plots above are loaded directly from CSV artifacts (\texttt{benchmarks\_summary.csv}, \texttt{stats\_summary.csv}, \texttt{cumulative\_accuracy.csv}, \texttt{error\_by\_phase.csv}).
+
+\subsection*{Attribution Mechanism}
+We add an attribution mechanism that records: (i) which blocks increase or decrease the solution state $S$ at each floor, (ii) counterfactual analysis (e.g., skipping a floor and estimating $S$), and (iii) a visual explanation of the descent trajectory with annotated decision points. Implementation: extend \texttt{ProblemBlock} with an \texttt{influence\_score}, track per-floor gradient attributions during Phase~III, and generate a human-readable explanation alongside the final solution. Impact: improves auditability for high-stakes domains (healthcare, legal, finance), reducing black-box risk.
 
 \subsection*{Cumulative Accuracy vs Problem Complexity}
 % Filter cumulative table by method (robust and compile-safe)

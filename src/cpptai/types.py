@@ -42,4 +42,5 @@ class ProblemBlock:
     improbability: float
     floor_index: int = 0
     dependencies: List[str] = field(default_factory=list)
+    influence_score: float = 0.0
 
