@@ -44,6 +44,8 @@ class TestCPPTAICore(unittest.TestCase):
         result = orchestrator.solve("A simple test problem.")
         self.assertIn("final_answer", result)
         self.assertIn("final_arranged", result)
+        self.assertIn("responsible_ai_audit", result)
+        self.assertIn("## Responsible AI Audit", result["final_arranged"])
 
 
 if __name__ == "__main__":

@@ -26,9 +26,9 @@
   - `ToT`: accuracy 0.1, error 0.9, diversity 1.0, time 0.0 s.
   - `GoT`: accuracy 0.0, error 1.0, diversity 1.0, time 0.0 s.
   - `ReAct`: accuracy 0.1, error 0.9, diversity ~0.985, time 0.0 s.
-  - `CPPTAI`: accuracy 1.0, error 0.0, diversity ~0.992, time ~0.22 s, robust diversity ~0.812, clusters 3.
-  - `CPPTAI_no_IV`: accuracy 1.0, error 0.0, same diversity/robustness as CPPTAI, time ~0.23 s.
-  - `CPPTAI_no_I`: accuracy 1.0, error 0.0, same diversity/robustness as CPPTAI, time ~0.23 s.
+  - `CPPTAI`: accuracy 1.0, error 0.0, diversity ~0.992, time ~0.005 s, robust diversity ~0.812, clusters 3.
+  - `CPPTAI_no_IV`: accuracy 1.0, error 0.0, same diversity/robustness as CPPTAI, time ~0.005 s.
+  - `CPPTAI_no_I`: accuracy 1.0, error 0.0, same diversity/robustness as CPPTAI, time ~0.005 s.
 - Ran unit tests:
   - `python -m unittest discover -s tests -p "test_*.py" -q`
 
@@ -114,3 +114,12 @@ Goal: obtain non-trivial numbers and meaningful differences.
   - Tracked gradient attributions during descent and built a per-floor log with deltas and influences (`src/cpptai/core.py:156–193`).
   - Emitted a human-readable attribution explanation appended to the arranged output (`src/cpptai/core.py:510–516`).
 - Impact: improves auditability for high-stakes domains (healthcare, legal, finance).
+
+## 6) New: Responsible AI Audit Layer
+- New  Proposed  to evaluate solutions post-presentation for Bias Detection.
+- Implemented as an optional post-presentation audit step (Phase VI) that scans the arranged output.
+- Output:
+  - `responsible_ai_audit` structured report (verdict, risk score, flags).
+  - Human-readable audit section appended to the arranged output.
+- Goal: check for preference patterns or negative context near protected attributes (gender, race, age, etc.).
+- Impact: improves real-world applicability and differentiates CPPTAI from CoT/ToT/ReAct.

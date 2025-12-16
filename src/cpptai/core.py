@@ -8,6 +8,7 @@ from __future__ import annotations
 import csv
 import json
 import math
+import re
 import time
 from dataclasses import asdict
 from datetime import datetime, timezone
@@ -477,6 +478,93 @@ class ConsistencyEnforcer:
         return len(missing) <= 2
 
 
+class ResponsibleAIAuditor:
+    def __init__(self):
+        self.protected_terms = [
+            "woman",
+            "women",
+            "man",
+            "men",
+            "male",
+            "female",
+            "girl",
+            "boy",
+            "black",
+            "white",
+            "asian",
+            "latino",
+            "hispanic",
+            "arab",
+            "jewish",
+            "muslim",
+            "christian",
+            "gay",
+            "lesbian",
+            "bisexual",
+            "trans",
+            "transgender",
+            "disabled",
+            "autistic",
+            "elderly",
+            "old",
+            "young",
+            "immigrant",
+        ]
+        self.negative_terms = {
+            "inferior",
+            "superior",
+            "lazy",
+            "stupid",
+            "criminal",
+            "dangerous",
+            "dirty",
+            "illegal",
+            "terrorist",
+            "untrustworthy",
+        }
+
+    def audit_bias_detection(self, text: str) -> Dict:
+        lowered = text.lower()
+        mentions: List[str] = []
+        negative_hits: List[Dict] = []
+
+        words = re.findall(r"[a-zA-Z']+", lowered)
+        for idx, w in enumerate(words):
+            if w not in self.protected_terms:
+                continue
+            mentions.append(w)
+            start = max(0, idx - 6)
+            end = min(len(words), idx + 7)
+            window = words[start:end]
+            hit_terms = sorted(set(t for t in window if t in self.negative_terms))
+            if hit_terms:
+                negative_hits.append({"term": w, "negative_terms": hit_terms, "context": " ".join(window)})
+
+        unique_mentions = sorted(set(mentions))
+        unique_negative = len(negative_hits)
+        risk = 0.0
+        if unique_mentions:
+            risk = 0.3
+        if unique_negative:
+            risk = min(1.0, risk + 0.2 * unique_negative)
+
+        verdict = "pass"
+        flags: List[str] = []
+        if unique_negative:
+            verdict = "review"
+            flags.append("negative_context_near_protected_attribute")
+        if not unique_mentions:
+            flags.append("no_protected_attribute_mentions_detected")
+
+        return {
+            "verdict": verdict,
+            "risk_score": round(risk, 3),
+            "protected_attribute_mentions": unique_mentions,
+            "negative_context_hits": negative_hits,
+            "flags": flags,
+        }
+
+
 class CPPTAITraslocatore:
     """Integrated system that orchestrates all phases end-to-end."""
 
@@ -487,6 +575,7 @@ class CPPTAITraslocatore:
         enable_phase_iii: bool = True,
         enable_phase_iv: bool = True,
         enable_phase_v: bool = True,
+        enable_phase_vi_audit: bool = True,
     ):
         self.segregator = EntropicSegregator()
         self.topology = VerticalTopology()
@@ -497,8 +586,39 @@ class CPPTAITraslocatore:
         self.enable_phase_iii = enable_phase_iii
         self.enable_phase_iv = enable_phase_iv
         self.enable_phase_v = enable_phase_v
+        self.enable_phase_vi_audit = enable_phase_vi_audit
+        self.auditor = ResponsibleAIAuditor()
         self.long_term_memory: List[Dict] = []
         self.raw_data_log: List[Dict] = []
+
+    def _format_responsible_ai_audit(self, report: Dict) -> str:
+        lines = [
+            f"Verdict: {report.get('verdict', '')}",
+            f"Risk score: {report.get('risk_score', 0.0):.3f}",
+        ]
+        mentions = report.get("protected_attribute_mentions", [])
+        flags = report.get("flags", [])
+        if mentions:
+            lines.append("Protected attribute mentions: " + ", ".join(mentions))
+        if flags:
+            lines.append("Flags: " + ", ".join(flags))
+        return "\n".join(lines)
+
+    def _decorate_arranged_output(self, result: Dict, arranged: str) -> str:
+        attrib_text = result.get("attribution_explanation", "")
+        cf_text = result.get("counterfactual_summary", "")
+        extra = ""
+        if attrib_text:
+            extra += "\n\n## Attribution\n" + attrib_text
+        if cf_text:
+            extra += "\n\n## Counterfactual\n" + cf_text
+
+        if self.enable_phase_vi_audit:
+            report = self.auditor.audit_bias_detection(arranged + extra)
+            result["responsible_ai_audit"] = report
+            extra += "\n\n## Responsible AI Audit\n" + self._format_responsible_ai_audit(report)
+
+        return arranged + extra
 
     def solve(self, problem: str, max_iterations: int = 100) -> Dict:
         blocks: List[ProblemBlock]
@@ -542,7 +662,7 @@ class CPPTAITraslocatore:
                     enriched = {**descent_result}
                     if self.enable_phase_v:
                         arranged = arrange_solution_simple(enriched.get("final_answer", ""), context="technical")
-                        enriched["final_arranged"] = arranged
+                        enriched["final_arranged"] = self._decorate_arranged_output(enriched, arranged)
                     enriched["tasks"] = generate_informatics_tasks(10)
                     self._archive_complete_process(enriched)
                     return enriched
@@ -555,14 +675,7 @@ class CPPTAITraslocatore:
         final_result = self._integrate_solutions(descent_result, external_solution)
         if self.enable_phase_v:
             arranged = arrange_solution_simple(final_result.get("final_answer", ""), context="technical")
-            attrib_text = final_result.get("attribution_explanation", "")
-            cf_text = final_result.get("counterfactual_summary", "")
-            extra = ""
-            if attrib_text:
-                extra += "\n\n## Attribution\n" + attrib_text
-            if cf_text:
-                extra += "\n\n## Counterfactual\n" + cf_text
-            final_result["final_arranged"] = arranged + extra
+            final_result["final_arranged"] = self._decorate_arranged_output(final_result, arranged)
         final_result["tasks"] = generate_informatics_tasks(10)
         self._archive_complete_process(final_result)
         return final_result

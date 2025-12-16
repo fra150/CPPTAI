@@ -2,17 +2,38 @@
 We propose an attribution mechanism to increase auditability of CPPTAI:
 
 \textbf{What to Track}
-- Which blocks caused the solution state $S$ to increase or decrease at each floor.
-- Counterfactual analysis: estimates of $S$ if a given floor were skipped.
-- Visual explanation: descent trajectory with annotated decision points.
+\begin{itemize}
+\item Which blocks caused the solution state $S$ to increase or decrease at each floor.
+\item Counterfactual analysis: estimates of $S$ if a given floor were skipped.
+\item Visual explanation: descent trajectory with annotated decision points.
+\end{itemize}
 
 \textbf{Implementation}
-- Extend \texttt{ProblemBlock} with an \texttt{influence\_score}.
-- Track gradient attributions during Phase~III (Cognitive Descent).
-- Generate a human-readable explanation alongside the final solution output.
+\begin{itemize}
+\item Extend \texttt{ProblemBlock} with an \texttt{influence\_score}.
+\item Track gradient attributions during Phase~III (Cognitive Descent).
+\item Generate a human-readable explanation alongside the final solution output.
+\end{itemize}
 
 \textbf{Impact}
 Strengthens auditability for high-stakes domains (healthcare, legal, finance) where black-box reasoning is unacceptable.
+
+\section*{Responsible AI Audit Layer}
+Proposed by Ewelu Valenina (AI Research), this extension introduces a systematic audit layer to evaluate solutions post-presentation for Bias Detection.
+
+\textbf{Goal}
+\begin{itemize}
+\item Check if the solution exhibits preference patterns across protected attributes (e.g., gender, race, age).
+\item Differentiate CPPTAI from existing frameworks by integrating ethical checks.
+\end{itemize}
+
+\textbf{Implementation Strategy}
+\begin{itemize}
+\item Define operational bias metrics.
+\item Determine the exact injection point (Phase VI or a transversal layer).
+\item Output format: flags, scores, or structured reports.
+\item Collaboration with Stephanie to formalize the module.
+\end{itemize}
 
 \section*{Latest Results}
 With \texttt{BENCH\_DISABLE\_EXTERNAL=1}, the benchmark summary is:
