@@ -19,9 +19,11 @@ from typing import Dict, List, Tuple
 import os
 
 from .core import CPPTAITraslocatore
+from .datasets import get_all_datasets
 
 
 def build_problems(n: int = 50) -> List[Dict]:
+    # Legacy energy problems
     regions = ["EU", "USA", "India", "China", "Brazil", "South Africa", "Japan", "Australia"]
     caps = ["net-zero 2050", "-50% CO2 by 2035", "carbon budget 1.5C"]
     mixes = ["renewables-heavy", "balanced", "nuclear-anchored"]
@@ -51,12 +53,18 @@ def build_problems(n: int = 50) -> List[Dict]:
                             "reserves",
                             "retraining",
                         ],
+                        "dataset": "energy_synthetic"
                     }
                 )
                 idx += 1
                 if len(variants) >= n:
-                    return variants
-    return variants[:n]
+                    break
+            if len(variants) >= n:
+                break
+    
+    # Mix in broader benchmark suite (stubs for GSM8K, MATH, etc.)
+    variants.extend(get_all_datasets(n_per_set=5))
+    return variants
 
 PROBLEMS: List[Dict] = build_problems(50)
 # Precompute prompt lengths to define normalized complexity per problem
@@ -124,10 +132,11 @@ def kmeans(vectors: List[List[float]], k: int = 3, iters: int = 10) -> List[int]
 
 def rubric_accuracy(text: str, expected: List[str]) -> float:
     """0–1 rubric score based on expected concept hits with partial credit.
-
-    Each expected concept contributes in {0, 0.5, 1} via exact or synonym match.
+    Supports basic numeric tolerance for math problems.
     """
     lower = text.lower()
+    
+    # Domain-specific synonyms for the energy problem
     synonyms: Dict[str, List[str]] = {
         "storage": ["batteries", "battery", "hydrogen storage", "pumped storage"],
         "smart grids": ["grid modernization", "smart grid", "digital grid"],
@@ -140,15 +149,34 @@ def rubric_accuracy(text: str, expected: List[str]) -> float:
         "reserves": ["strategic reserves", "stockpile"],
         "retraining": ["job training", "vocational", "reskilling"],
     }
+    
     score = 0.0
     for key in expected:
         k = key.lower()
+        # Direct match
         if k in lower:
             score += 1.0
-        else:
-            syns = synonyms.get(k, [])
-            if any(s in lower for s in syns):
-                score += 0.5
+            continue
+            
+        # Synonym match
+        syns = synonyms.get(k, [])
+        if any(s in lower for s in syns):
+            score += 0.5
+            continue
+            
+        # Numeric match (simple heuristic)
+        if k.replace('.', '', 1).isdigit():
+            import re
+            # Extract all numbers from text
+            nums = re.findall(r"[-+]?\d*\.\d+|\d+", lower)
+            try:
+                target = float(k)
+                # Check if any number in text is close to target (within 1%)
+                if any(abs(float(n) - target) < max(0.01, 0.01 * abs(target)) for n in nums):
+                    score += 1.0
+            except ValueError:
+                pass
+                
     return score / max(1, len(expected))
 
 
