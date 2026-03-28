@@ -20,13 +20,28 @@ import hashlib
 DEEPSEEK_BASE_URL = "https://api.deepseek.com"
 CHAT_COMPLETIONS_PATH = "/chat/completions"
 
+_MODEL_ALIASES = {
+    "DeepSeek-V3.2-Exp": "deepseek-chat",
+    "DeepSeek-V3.2": "deepseek-chat",
+    "DeepSeek-V3": "deepseek-chat",
+    "DeepSeek-R1": "deepseek-reasoner",
+}
+
+
+def _normalize_model_name(model: str) -> str:
+    raw = (model or "").strip()
+    if raw in _MODEL_ALIASES:
+        return _MODEL_ALIASES[raw]
+    return raw or "deepseek-chat"
+
+
 
 def deepseek_chat(
     messages: List[Dict[str, str]],
     model: str = "DeepSeek-V3.2-Exp",
     stream: bool = False,
     base_url: str = DEEPSEEK_BASE_URL,
-) -> Optional[Dict]:
+    ) -> Optional[Dict]:
     """Call DeepSeek Chat Completions API and return the parsed JSON response.
 
     Args:
@@ -42,14 +57,15 @@ def deepseek_chat(
 
     # Load .env once before reading variables.
     load_env()
-    api_key = os.getenv("DEEPSEEK_API_KEY")
+    api_key = (os.getenv("DEEPSEEK_API_KEY") or "").strip()
     if not api_key:
         # Fail gracefully if no key is present.
         return None
 
     url = f"{base_url}{CHAT_COMPLETIONS_PATH}"
+    normalized_model = _normalize_model_name(model)
     body = {
-        "model": model,
+        "model": normalized_model,
         "messages": messages,
         "stream": stream,
         "temperature": 0,

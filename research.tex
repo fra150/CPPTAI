@@ -1,450 +1,84 @@
 \documentclass[11pt]{article}
-
 \usepackage[a4paper,margin=1in]{geometry}
 \usepackage{hyperref}
-\usepackage{titlesec}
-\usepackage{graphicx}
-\usepackage{listings}
+\usepackage{amsmath}
+\usepackage{booktabs}
 \usepackage{pgfplots}
 \usepackage{pgfplotstable}
-\usepackage{booktabs}
-\usepackage{amsmath}
-\usepackage{xcolor}
-\usepackage{microtype}
-\usepackage{enumitem}
 
 \pgfplotsset{compat=1.18}
-\usepgfplotslibrary{statistics,polar}
 
-% ---------- Listings ----------
-\lstset{
-  basicstyle=\ttfamily\small,
-  columns=fullflexible,
-  frame=single,
-  breaklines=true,
-  keywordstyle=\bfseries,
-  commentstyle=\itshape,
-  showstringspaces=false
-}
-
-% ---------- Plot styles ----------
-\pgfplotsset{
-  traslocatoreBar/.style={
-    ybar,
-    bar width=11pt,
-    width=0.95\linewidth,
-    height=6.2cm,
-    ymajorgrids,
-    grid style={black!10},
-    tick label style={font=\small},
-    label style={font=\small},
-    nodes near coords,
-    every node near coord/.append style={font=\scriptsize},
-    enlarge x limits=0.15,
-    xticklabel style={rotate=35, anchor=east}
-  },
-  traslocatoreLine/.style={
-    width=0.95\linewidth,
-    height=6.2cm,
-    grid=major,
-    grid style={black!10},
-    tick label style={font=\small},
-    label style={font=\small}
-  }
-}
-
-\title{CPPTAI-Traslocatore: A Five-Phase Entropic Framework for Hierarchical Problem Solving}
-\author{
-  Francesco Bulla\\{\small Independent Researcher}
-  \and
-  Stephanie Ewelu\\{\small Collaborator}
-}
+\title{CPPTAI V2.0md: Reproducible Five-Phase Reasoning Pipeline}
+\author{CPPTAI Research Team}
 \date{\today}
 
 \begin{document}
 \maketitle
 
 \begin{abstract}
-We present \textbf{CPPTAI-Traslocatore}, a five-phase reasoning and engineering framework designed to make complex problem solving both \emph{hierarchical} and \emph{auditable}. The method combines (I) \emph{entropy-driven prioritization} of improbable blocks, (II) an explicit \emph{vertical topology} that maps complexity to floors in a building-like structure, (III) a bounded \emph{cognitive descent} update rule that collapses variants into a stable solution state, (IV) an ordered \emph{external convergence} protocol across heterogeneous sources (web, alternate LLM, social, scientific, human), and (V) stakeholder-oriented presentation.
-We describe a modular Python implementation, an OpenAI-compatible DeepSeek integration, and an automated benchmark suite over 50 energy-planning tasks comparing CPPTAI against CoT, ToT, GoT, and ReAct baselines.
+This document describes CPPTAI V2.0md, a refactoring of the CPPTAI framework toward deterministic and auditable experimentation. The main contributions are: (i) a canonical schema for run artifacts, (ii) modular phase execution with explicit phase outputs, (iii) YAML-based configuration for reproducible suites, (iv) a deterministic cache layer enabling offline replay, and (v) CI automation for continuous evaluation.
 \end{abstract}
 
-\section{Background}
-CPPTAI-Traslocatore operationalizes a simple principle: \emph{complex tasks fail where the improbable and high-impact constraints are postponed}. The framework forces early engagement with those constraints via an entropic ordering, then constrains reasoning through a topology (floors) that makes progress measurable.
+\section{Motivation}
+The primary objective of CPPTAI V2.0md is reproducibility: given a repository commit, a third party should be able to execute the suite and obtain the same benchmark logs, metrics, and figures (or a controlled approximation in strictly offline mode). This design addresses drift introduced by external APIs and remote datasets, and supports experimental auditing via structured artifacts.
 
-\textbf{Phase I (Entropic Segregation).} Segment the task into blocks and prioritize the most improbable/high-impact ones first.\\
-\textbf{Phase II (Vertical Topology).} Map complexity to building height; each block is assigned a floor to encode hierarchy.\\
-\textbf{Phase III (Cognitive Descent).} Traverse floors top-down, updating a compact solution-state vector via a bounded rule.\\
-\textbf{Phase IV (External Convergence).} Consult sources in a fixed order and synthesize a single external view.\\
-\textbf{Phase V (Presentation).} Render results into stakeholder-specific formats (executive/technical/public).
-
-\section{Implementation}
-The project implements these phases under \texttt{src/cpptai/}:
-\begin{itemize}[leftmargin=1.2em]
-  \item \texttt{types.py}: core data types (\texttt{DifficultyLevel}, \texttt{ProblemBlock}).
-  \item \texttt{core.py}: orchestration (Phases I--IV), integration logic, persistence to \texttt{memoria.json} and \texttt{ragionamenti.csv}.
-  \item \texttt{deepseek\_client.py}: minimal client for \texttt{POST /chat/completions} on \texttt{https://api.deepseek.com} (default model \texttt{DeepSeek-V3.2-Exp}).
-  \item \texttt{presentation.py}: Phase V formatter (executive/technical/public).
-  \item \texttt{tasks.py}: task generator across algorithms, security, networks, databases, and DevOps.
+\section{System Design}
+\subsection{Module Contracts}
+The framework is organized as follows:
+\begin{itemize}
+  \item \texttt{cpptai/types.py}: canonical dataclasses (\texttt{RunConfig}, \texttt{RunArtifact}, \texttt{PhaseOutput}, \texttt{BenchmarkItem}, \texttt{SolutionState}).
+  \item \texttt{cpptai/phases/}: phase modules exposing \texttt{run(state, config)} for Phase I--V.
+  \item \texttt{cpptai/pipeline\_v2.py}: suite runner producing structured JSON artifacts per run.
+  \item \texttt{cpptai/io/cache.py}: deterministic cache for external connector inputs/outputs.
+  \item \texttt{scripts/run\_suite.py}: YAML-configured driver for v2 runs and benchmarks.
 \end{itemize}
 
-\section{API Integration}
-DeepSeek API is used in two places: (a) as an alternate LLM in Phase IV, and (b) as an optional LLM-as-a-judge for conceptual complexity. The client reads the API key from \texttt{.env} via a standard-library loader and avoids logging secrets. Calls set \texttt{temperature=0} and \texttt{seed=0} for determinism, subject to provider guarantees.
+\subsection{Canonical Artifact Schema}
+Each run produces \texttt{run\_\{uuid\}.json}, a fully structured artifact containing configuration, phase-by-phase inputs/outputs, entropy proxies, provenance, verification outcomes, and failure metadata.
 
-\section{Verification}
-Unit tests under \texttt{tests/} are executed with Python's \texttt{unittest}:
-\begin{itemize}[leftmargin=1.2em]
-  \item Segregation produces ordered \texttt{ProblemBlock}s and consistent heuristic scores.
-  \item Cognitive descent increases coherence/completeness/confidence under bounded updates.
-  \item Convergence synthesizes sources in the requested order and assigns provenance labels.
-  \item Phase V produces well-formed sections for ``technical'' and ``executive'' contexts.
-\end{itemize}
+\subsection{Deterministic Modes}
+The suite supports online, cached, and offline execution. In offline mode, external calls are disabled and cached responses are replayed if present; otherwise, the pipeline degrades gracefully to deterministic stub outputs. The cache is keyed by normalized request payloads to enable stable replay across machines.
 
-\section{Contributions}
-\textbf{C1}: A five-phase algorithm for hierarchical decomposition, entropy-prioritized processing, and ordered multi-source convergence.\\
-\textbf{C2}: A modular implementation with persistence and tests that supports reproducibility and auditability.\\
-\textbf{C3}: An evaluation suite with ablations and repeatable metrics, producing CSV artifacts for plotting and statistical analysis.
+\section{Benchmark Integration}
+\subsection{Dataset Loading}
+Benchmark datasets are loaded using HuggingFace \texttt{datasets} in streaming mode when available, with robust fallbacks to deterministic synthetic stubs when a dataset is inaccessible.
 
-\section{Related Work}
-We position CPPTAI with respect to established reasoning paradigms:\\
-\textbf{Chain-of-Thought (CoT)} (\cite{wei2022cot}): linear decomposition with step-wise reasoning.\\
-\textbf{Tree-of-Thought (ToT)} (\cite{yao2023tree}): branching search over solution candidates.\\
-\textbf{Graph-of-Thought (GoT)} (\cite{besta2024got}): graph-structured reasoning with cross-links.\\
-\textbf{ReAct} (\cite{yao2022react}): interleaves reasoning with actions and observations (tool use).\\
-\textbf{CPPTAI}: adds (i) entropy-driven prioritization, (ii) explicit topology-to-floor mapping, (iii) bounded descent dynamics, and (iv) ordered multi-source convergence plus a presentation layer.
+\subsection{Unified Runner}
+The command \texttt{python scripts/run\_suite.py --config configs/offline.yaml} executes a complete v2 run plus the benchmark suite in offline mode, storing structured artifacts under the configured output directory.
 
-\subsection{Extended Related Work}\label{subsec:extended_related}
-\textbf{Advanced Reasoning Frameworks}: Self-Consistency (\cite{wang2023selfconsistency}), Program-of-Thoughts (\cite{chen2022programthoughts}), OPRO (\cite{yang2023opro}), DSPy (\cite{khattab2023dspy}).\\
-\textbf{Multi-Agent Systems}: ChatDev (\cite{qian2023chatdev}), Camel (\cite{li2023camel}).\\
-\textbf{Differentiation}: CPPTAI unifies entropy-based prioritization, topological hierarchy, ordered convergence, and stakeholder formatting in one cohesive pipeline.
+\section{Verification Transcript}
+\begin{verbatim}
+Failed to load MATH from HuggingFace: Dataset 'competition_math' doesn't exist
+on the Hub or cannot be accessed.. Falling back to stubs.
+Generated 36 problems.
+Datasets found: {'math', 'scibench', 'humaneval', 'energy_synthetic', 'gsm8k'}
+Testing rubric...
+Rubric '42' in 'The answer is 42.': 1.0
+Rubric '3.14' in 'Value is 3.14159': 1.0
+Benchmark setup verified.
+\end{verbatim}
 
-\begin{table}[h]
-\centering
-\begin{tabular}{lcccc}
-\toprule
-Paradigm & Decomposition & Topology & Multi-source & Presentation \\
-\midrule
-CoT   & Linear        & Linear    & No            & No \\
-ToT   & Branching     & Tree      & No            & No \\
-GoT   & Cross-linked  & Graph     & No            & No \\
-ReAct & Action-based  & Linear    & Yes (tools)   & No \\
-CPPTAI & Entropic     & Building  & Yes (ordered) & Yes \\
-\bottomrule
-\end{tabular}
-\caption{Reasoning paradigm comparison.}
-\end{table}
-
-\section{Formalization (Phases I--IV)}
-Let a task be segmented into blocks
-\[
-B_i = (id, \text{content}, d_i, p_i, I_i, F_i, \mathcal{D}_i)
-\]
-where $d_i \in \{0,\ldots,5\}$ is a discrete difficulty level, $p_i \in [0,1]$ is the estimated solution probability, $I_i = 1 - p_i$ is improbability, $F_i$ is the assigned floor, and $\mathcal{D}_i$ denotes dependencies.
-
-We define $\text{complexity}_i \in [0,1]$ as a normalized complexity score (e.g., length-based or feature-based normalization within the task).
-
-\paragraph{Phase I: Entropic Segregation.}
-Blocks are sorted by
-\[
-\eta_i = w\,\text{complexity}_i + (1-w)\,I_i \quad \text{(descending)}, \;\; w \in [0,1].
-\]
-
-\paragraph{Phase II: Vertical Topology.}
-Let total floors be
-\[
-H = \left\lceil s \cdot \sum_i \text{complexity}_i \right\rceil, \quad s>0.
-\]
-Assign each block to a floor
-\[
-F_i = \mathrm{clip}\!\left(\mathrm{round}(\text{complexity}_i \cdot H),\, 0,\, H\right).
-\]
-
-\paragraph{Phase III: Cognitive Descent (bounded dynamics).}
-Let $S=(c_{\text{coh}}, c_{\text{cmp}}, c_{\text{conf}}) \in [0,1]^3$ be a compact solution-state. For each floor $f = H, H-1, \ldots, 0$ we update
-\[
-S \leftarrow \mathrm{clip}\left((1-\lambda)S + \alpha\,\Delta_{\text{struct}}(f) + \beta\,\Delta_{\text{sem}}(f),\, 0,\, 1\right),
-\]
-where $\Delta_{\text{struct}}$ encodes floor-consistent structural constraints and $\Delta_{\text{sem}}$ encodes semantic improvements (e.g., consistency checks, constraint satisfaction signals). $\lambda$ is a stabilizing regularizer.
-
-\paragraph{Phase IV: External Convergence (ordered synthesis).}
-Given ordered sources $\mathcal{S} = (\text{Web}, \text{Alt-LLM}, \text{Social}, \text{Science}, \text{Human})$, CPPTAI collects outputs $o_j$ and produces a synthesis
-\[
-O = \mathrm{Aggregate}\big((o_1,\ldots,o_m),\, \pi\big)
-\]
-under fixed order $\pi$, storing provenance and per-source confidence labels. External calls can be disabled via \texttt{BENCH\_DISABLE\_EXTERNAL=1}.
-
-\section{Metrics}\label{sec:metrics}
-\textbf{Accuracy (rubric)}: for criteria $C_k$ with synonym sets $S_k$, each criterion contributes in $\{0, 0.5, 1\}$ (absent/partial/complete); overall accuracy is the mean across criteria.\\
-\textbf{Diversity (Shannon)}: $H = -\sum_j p_j \log_2 p_j$, normalized by $H_{\max} = \log_2 K$, yielding $H/H_{\max}\in[0,1]$.\\
-\textbf{Robust diversity}: stable-hash bucket embeddings $\rightarrow$ k-means into $C$ clusters; compute mean pairwise cosine distance and clip to $[0,1]$.\\
-\textbf{Efficiency}: time-per-problem and token usage from benchmark artifacts.
-
-\section{Experimental Setup}
-\textbf{Dataset}: 50 energy-planning variants generated by parameterizing region (EU, USA, India, China, Brazil, South Africa, Japan, Australia), targets (net-zero 2050, -50\% by 2035, 1.5C budget), and preferred mix (renewables-heavy, balanced, nuclear-anchored).\\
-\textbf{Baselines}: fixed prompts representing CoT/ToT/GoT/ReAct patterns; same LLM settings (temperature=0, seed=0) where applicable.\\
-\textbf{Compute}: same environment across runs; external provider behavior may evolve; optional caching mitigates drift.
-
-\section{Algorithm (Pseudocode)}
-\begin{lstlisting}[language=Python]
-S = {"coherence":0.20, "completeness":0.20, "confidence":0.20}
-for floor in reversed(range(H+1)):
-    delta_struct = structural_signal(floor, H)
-    delta_sem    = semantic_signal(floor, context="Floor variant")
-    blended = blend(delta_struct, delta_sem, alpha=0.5, beta=0.5)
-
-    for k in ("coherence", "completeness", "confidence"):
-        S[k] = clamp01((1-lam)*S[k] + lr*blended[k])
-
-final = collapse_solution(S)
-\end{lstlisting}
-
-\section{Results}
-\subsection{Walkthrough Example (All 5 Phases)}
-We report one complete walkthrough on the prompt used by the CLI (\texttt{src/main.py}):
-\begin{quote}
-How can we address the global energy crisis considering: (1) limits of renewables, (2) nuclear costs, (3) fossil dependency, (4) geopolitical factors, (5) a just transition for workers?
-\end{quote}
-
-\textbf{Phase I.} Segment into constraint-blocks; rank via $\eta_i$ to force early resolution of high-improbability constraints.\\
-\textbf{Phase II.} Assign floors $F_i$ to encode a stable hierarchy that constrains descent.\\
-\textbf{Phase III.} Update $S$ top-down with bounded dynamics until collapse at ground floor.\\
-\textbf{Phase IV.} (Optional) consult ordered sources and synthesize with provenance labels.\\
-\textbf{Phase V.} Format as stakeholder-ready output; persist \texttt{memoria.json} and \texttt{ragionamenti.csv}.
-
-\subsection{Figures (Measured, from CSV)}
-All plots below are generated from CSV artifacts produced by \texttt{src/cpptai/benchmarks.py}.
-
-% ---------- Load tables ONCE ----------
-\pgfplotstableread[col sep=comma]{benchmarks.csv}{\benchdata}
-\pgfplotstableread[col sep=comma]{benchmarks_summary.csv}{\sumdata}
-\pgfplotstableread[col sep=comma]{stats_summary.csv}{\statdata}
-\pgfplotstableread[col sep=comma]{error_by_phase.csv}{\errordata}
-\pgfplotstableread[col sep=comma]{cumulative_accuracy.csv}{\cumraw}
-
-\subsection*{Auto-Generated Table (CSV)}
-\pgfplotstabletypeset[
-  every head row/.style={before row=\toprule, after row=\midrule},
-  every last row/.style={after row=\bottomrule},
-  columns/method/.style={string type},
-  columns/accuracy/.style={fixed, precision=3},
-  columns/error_rate/.style={fixed, precision=3},
-  columns/diversity/.style={fixed, precision=3},
-  columns/robust_diversity/.style={fixed, precision=3},
-  columns/time_sec/.style={fixed, precision=3},
-  columns/tokens/.style={int},
-  columns/clusters/.style={int},
-  columns/problem_complexity/.style={fixed, precision=3},
-  columns={method,accuracy,error_rate,diversity,robust_diversity,time_sec,tokens,clusters,problem_complexity},
-]{\benchdata}
-
-\subsection*{Accuracy per Method}
-\begin{figure}[h]
+\section{Results and Figures}
+\IfFileExists{benchmarks.csv}{
+  \pgfplotstableread[col sep=comma]{benchmarks.csv}\benchdata
+  \begin{table}[h]
   \centering
-  \begin{tikzpicture}
-    \begin{axis}[
-      traslocatoreBar,
-      ymin=0, ymax=1,
-      ylabel={Accuracy},
-      symbolic x coords={CoT,ToT,GoT,ReAct,CPPTAI,CPPTAI_no_IV,CPPTAI_no_I},
-      xtick=data
-    ]
-      \addplot table[x=method,y=accuracy]{\sumdata};
-    \end{axis}
-  \end{tikzpicture}
-  \caption{Accuracy comparison across methods (means over tasks).}\label{fig:accuracy}
-\end{figure}
+  \pgfplotstabletypeset[
+    columns={method,accuracy,error_rate,diversity,time_sec,tokens},
+    columns/method/.style={string type},
+    every head row/.style={before row=\toprule,after row=\midrule},
+    every last row/.style={after row=\bottomrule},
+  ]{\benchdata}
+  \caption{Benchmark records loaded from \texttt{benchmarks.csv}.}
+  \end{table}
+}{
+  Benchmark CSV not found. Run the suite to generate \texttt{benchmarks.csv}.
+}
 
-\subsection*{Time per Method}
-\begin{figure}[h]
-  \centering
-  \begin{tikzpicture}
-    \begin{axis}[
-      traslocatoreBar,
-      ymin=0,
-      ylabel={Time (s)},
-      symbolic x coords={CoT,ToT,GoT,ReAct,CPPTAI,CPPTAI_no_IV,CPPTAI_no_I},
-      xtick=data
-    ]
-      \addplot table[x=method,y=time_sec]{\sumdata};
-    \end{axis}
-  \end{tikzpicture}
-  \caption{Time-per-problem (means; CPPTAI may include external calls when enabled).}\label{fig:time}
-\end{figure}
+\section{CI Automation}
+Continuous evaluation is enforced via GitHub Actions, running unit tests and an offline v2 smoke run on each push and pull request.
 
-\subsection*{Statistical Tests (paired comparisons)}
-\pgfplotstabletypeset[
-  every head row/.style={before row=\toprule, after row=\midrule},
-  every last row/.style={after row=\bottomrule},
-  columns/method_a/.style={string type},
-  columns/method_b/.style={string type},
-  columns/t_stat/.style={fixed, precision=3},
-  columns/cohen_d/.style={fixed, precision=3},
-  columns/n/.style={int},
-  columns/p_value/.style={fixed, precision=6},
-  columns={method_a,method_b,t_stat,cohen_d,n,p_value},
-]{\statdata}
-
-\subsection*{Results Summary (\texttt{BENCH\_DISABLE\_EXTERNAL=1})}
-With external calls disabled, CPPTAI achieves mean accuracy $1.0$ on all 50 energy-planning variants, while baselines remain low (CoT/GoT at $0.0$, ToT/ReAct at $0.1$). This separation arises from a deterministic presentation layer that enriches the final answer with key energy-portfolio concepts (storage and smart grids, SMR and CCUS, electrification, supply diversification, recycling, and just transition), ensuring full rubric coverage even without Phase~IV. All tables and plots above are loaded directly from CSV artifacts (\texttt{benchmarks\_summary.csv}, \texttt{stats\_summary.csv}, \texttt{cumulative\_accuracy.csv}, \texttt{error\_by\_phase.csv}).
-
-\subsection*{Attribution Mechanism}
-We add an attribution mechanism that records: (i) which blocks increase or decrease the solution state $S$ at each floor, (ii) counterfactual analysis (e.g., skipping a floor and estimating $S$), and (iii) a visual explanation of the descent trajectory with annotated decision points. Implementation: extend \texttt{ProblemBlock} with an \texttt{influence\_score}, track per-floor gradient attributions during Phase~III, and generate a human-readable explanation alongside the final solution. Impact: improves auditability for high-stakes domains (healthcare, legal, finance), reducing black-box risk.
-
-\subsection*{Cumulative Accuracy vs Problem Complexity}
-% Filter cumulative table by method (robust and compile-safe)
-\pgfplotstablefilter[filter expr={\equal{\thisrow{method}}{CPPTAI}}]{\cumraw}{\cumCPPTAI}
-\pgfplotstablefilter[filter expr={\equal{\thisrow{method}}{CoT}}]{\cumraw}{\cumCoT}
-\pgfplotstablefilter[filter expr={\equal{\thisrow{method}}{ToT}}]{\cumraw}{\cumToT}
-
-\begin{figure}[h]
-\centering
-\begin{tikzpicture}
-\begin{axis}[
-    traslocatoreLine,
-    title={Cumulative Accuracy vs Problem Complexity},
-    xlabel={Problem Complexity (0--1)},
-    ylabel={Cumulative Accuracy},
-    xmin=0, xmax=1,
-    ymin=0, ymax=1,
-    legend pos=south east
-]
-\addplot+[mark=*] table[x=complexity, y=cumulative_accuracy]{\cumCPPTAI};
-\addplot+[mark=square*] table[x=complexity, y=cumulative_accuracy]{\cumCoT};
-\addplot+[mark=triangle*] table[x=complexity, y=cumulative_accuracy]{\cumToT};
-\legend{CPPTAI, CoT, ToT}
-\end{axis}
-\end{tikzpicture}
-\caption{Cumulative trend as complexity increases (pipeline: \texttt{cumulative_accuracy.csv}).}\label{fig:cumulative_accuracy}
-\end{figure}
-
-\subsection*{Mean Error Rate by Method Tag}
-\begin{figure}[h]
-\centering
-\begin{tikzpicture}
-\begin{axis}[
-  traslocatoreBar,
-  ymin=0, ymax=1,
-  ylabel={Mean Error Rate},
-  symbolic x coords={Baseline,Full,No_IV,No_I},
-  xtick=data
-]
-  % expects columns: tag, mean_error_rate
-  \addplot table[x=tag,y=mean_error_rate]{\errordata};
-\end{axis}
-\end{tikzpicture}
-\caption{Mean error rate by method tag (pipeline: \texttt{error\_by\_phase.csv}).}\label{fig:error_rate}
-\end{figure}
-
-\subsection*{Ablation Spider (illustrative profile)}
-\begin{figure}[h]
-\centering
-\begin{tikzpicture}
-\begin{polaraxis}[
-    width=0.86\linewidth,
-    height=0.86\linewidth,
-    grid=both,
-    major grid style={black!30},
-    minor grid style={black!10},
-    xtick={0,60,120,180,240,300},
-    xticklabels={Accuracy,Diversity,Speed,Robustness,Explainability,Cost-Eff.},
-    ytick={0.2,0.4,0.6,0.8,1.0},
-    ymin=0, ymax=1,
-]
-\addplot[mark=*] coordinates {(0,0.83) (60,0.75) (120,0.60) (180,0.80) (240,0.70) (300,0.65)};
-\addplot[mark=*] coordinates {(0,0.78) (60,0.70) (120,0.65) (180,0.50) (240,0.68) (300,0.70)};
-\addplot[mark=*] coordinates {(0,0.76) (60,0.68) (120,0.62) (180,0.75) (240,0.66) (300,0.64)};
-\legend{CPPTAI-Full, w/o Phase IV, w/o Phase I}
-\end{polaraxis}
-\end{tikzpicture}
-\caption{Ablation profile: qualitative impact of removing phases (illustrative unless sourced from CSV).}\label{fig:ablation_spider}
-\end{figure}
-
-\section{Discussion}
-CPPTAI-Traslocatore targets a specific gap: \emph{reasoning methods that scale in complexity often lose auditability}. By enforcing (i) an explicit ordering over improbable constraints, (ii) a topology that makes hierarchy concrete, and (iii) bounded descent dynamics, the system constrains drift and makes progress inspectable via artifacts (\texttt{memoria.json}, \texttt{ragionamenti.csv}). External convergence is treated as a protocol (order + provenance) rather than an ad-hoc tool call, enabling controlled augmentation without collapsing reproducibility.
-
-\section{Conclusion and Future Work}
-We operationalize a five-phase reasoning architecture into a working, testable codebase with automated benchmarking and plotting from CSV artifacts. Future work includes: richer connectors for Phase IV (web/social/science), stronger judge rubrics with calibration, broader benchmark suites (GSM8K/MATH/HumanEval/SciBench), and expanded tests (property-based checks and integration tests for external clients).
-
-\section{Limitations and Threats to Validity}\label{sec:limitations}
-\textbf{Internal Validity}: prompt sensitivity and heuristic choices may influence results; implementation details can encode bias.\\
-\textbf{External Validity}: results are currently centered on energy-planning tasks; transfer to other domains requires additional validation.\\
-\textbf{Construct Validity}: automatic metrics are incomplete proxies for human usefulness; LLM-as-judge can inherit model preferences.\\
-\textbf{Temporal Validity}: external providers evolve; even with caching/seed controls, perfect determinism is not guaranteed.
-
-\section*{Recommended Extensions}
-\subsection*{Benchmarks and Metrics}
-Extend evaluation to additional datasets (GSM8K/MATH/AIME, HumanEval/MBPP, SciBench, ALFWorld), report time-per-problem, cost efficiency, and error taxonomies; automate runs and output CSV/JSON for reproducibility.
-
-\subsection*{External Integrations}
-Replace Phase IV stubs with real connectors: web search APIs, social trend/sentiment signals, scientific archives (e.g., arXiv), maintaining consultation order and per-source confidence estimates.
-
-\subsection*{Timezone-Safe Logging}
-Use timezone-aware timestamps (UTC) throughout for consistent audit trails (standard library).
-
-\subsection*{Testing Strategy}
-Add property-based tests for idempotence and monotonic improvements, plus integration tests for DeepSeek fallback/error handling.
-
-\subsection*{Security Hardening}
-Audit secrets handling, add rate limiting and retry policies, and consider circuit breakers for unstable sources.
-
-\section*{Availability}
-Source is arranged under \texttt{src/}, runnable via \texttt{python src/main.py}. Tests run with \texttt{python -m unittest}. Repository: \href{https://github.com/fra150/CPPTAI}{https://github.com/fra150/CPPTAI}.
-
-\section*{Acknowledgements}
-Collaboration and review support: \textbf{Stephanie Ewelu}.
-
-\begin{thebibliography}{9}
-
-\bibitem{wei2022cot}
-Jason Wei et al.
-\newblock Chain-of-Thought Prompting Elicits Reasoning in Large Language Models.
-\newblock In \emph{NeurIPS}, 2022. \url{https://arxiv.org/abs/2201.11903}
-
-\bibitem{yao2023tree}
-Shunyu Yao et al.
-\newblock Tree of Thoughts: Deliberate Problem Solving with Large Language Models.
-\newblock 2023. \url{https://arxiv.org/abs/2305.10601}
-
-\bibitem{besta2024got}
-Michał Besta et al.
-\newblock Graph of Thoughts: Solving Elaborate Problems with Large Language Models.
-\newblock 2024. \url{https://arxiv.org/abs/2308.05761}
-
-\bibitem{yao2022react}
-Shunyu Yao et al.
-\newblock ReAct: Synergizing Reasoning and Acting in Language Models.
-\newblock 2022. \url{https://arxiv.org/abs/2210.03629}
-
-\bibitem{wang2023selfconsistency}
-Xuezhi Wang et al.
-\newblock Self-Consistency Improves Chain of Thought Reasoning in Language Models.
-\newblock 2023. \url{https://arxiv.org/abs/2303.11366}
-
-\bibitem{chen2022programthoughts}
-Xinyun Chen et al.
-\newblock Program of Thoughts: Enhancing Reasoning via Code Generation.
-\newblock 2022. \url{https://arxiv.org/abs/2211.12588}
-
-\bibitem{yang2023opro}
-Kevin Yang et al.
-\newblock Large Language Models as Optimizers.
-\newblock 2023. \url{https://arxiv.org/abs/2309.03409}
-
-\bibitem{khattab2023dspy}
-Omar Khattab et al.
-\newblock DSPy: Declarative Language Model Programming.
-\newblock 2023. \url{https://arxiv.org/abs/2305.11665}
-
-\bibitem{qian2023chatdev}
-Jun Qian et al.
-\newblock ChatDev: Communicative Agents for Software Development.
-\newblock 2023. \url{https://arxiv.org/abs/2307.07906}
-
-\bibitem{li2023camel}
-Yuan Li et al.
-\newblock CAMEL: Communicative Agents for Mind Exploration of Large Language Models.
-\newblock 2023. \url{https://arxiv.org/abs/2303.17760}
-
-\end{thebibliography}
+\section{Availability}
+Repository: \href{https://github.com/fra150/CPPTAI}{https://github.com/fra150/CPPTAI}. The v2 suite is executed via \texttt{python scripts/run\_suite.py}.
 
 \end{document}

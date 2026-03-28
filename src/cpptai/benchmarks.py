@@ -15,11 +15,12 @@ import csv
 import json
 import math
 import time
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 import os
+import re
 
 from .core import CPPTAITraslocatore
-from .datasets import get_all_datasets
+from .datasets import DatasetLoader, get_all_datasets
 
 
 def build_problems(n: int = 50) -> List[Dict]:
@@ -180,6 +181,59 @@ def rubric_accuracy(text: str, expected: List[str]) -> float:
     return score / max(1, len(expected))
 
 
+def _extract_final_number_str(text: str) -> Optional[str]:
+    matches = re.findall(r"[-+]?\d+(?:,\d{3})*(?:\.\d+)?", text)
+    if not matches:
+        return None
+    raw = matches[-1].replace(",", "").strip()
+    if raw.endswith("."):
+        raw = raw[:-1]
+    return raw if raw else None
+
+
+def gsm8k_accuracy(text: str, expected: List[str]) -> float:
+    if not expected:
+        return 0.0
+    pred_s = _extract_final_number_str(text) or text.strip()
+    exp_s = _extract_final_number_str(expected[0]) or expected[0].strip()
+    try:
+        pred = float(pred_s)
+        exp = float(exp_s)
+    except Exception:
+        return 0.0
+    return 1.0 if abs(pred - exp) <= 1e-9 else 0.0
+
+
+def run_gsm8k_cpptai(n: int = 30) -> Tuple[List[Dict], Dict]:
+    orchestrator = CPPTAITraslocatore(enable_phase_iv=False)
+    items = DatasetLoader.load_gsm8k(n=n)
+    records: List[Dict] = []
+    correct = 0
+    for item in items:
+        pid = item["id"]
+        prompt = item["prompt"]
+        expected = item.get("expected") or []
+        t0 = time.perf_counter()
+        res = orchestrator.solve_gsm8k(prompt)
+        dt = time.perf_counter() - t0
+        pred = res.get("final_answer", "")
+        acc = gsm8k_accuracy(pred, expected)
+        correct += 1 if acc >= 1.0 else 0
+        records.append(
+            {
+                "problem_id": pid,
+                "method": "CPPTAI_gsm8k",
+                "accuracy": round(acc, 3),
+                "time_sec": round(dt, 3),
+                "expected": expected[0] if expected else "",
+                "prediction": pred,
+            }
+        )
+    total = len(records) or 1
+    summary = {"n": total, "accuracy": round(correct / total, 3)}
+    return records, summary
+
+
 def baseline_cot(problem: str) -> str:
     return (
         "We analyze constraints and propose a step-by-step plan combining renewables, "
@@ -226,6 +280,7 @@ def run_benchmarks() -> Tuple[List[Dict], Dict]:
         pid = p["id"]
         prompt = p["prompt"]
         expected = p["expected"]
+        dataset = p.get("dataset", "")
 
         # Baselines
         for name, fn in methods:
@@ -233,7 +288,7 @@ def run_benchmarks() -> Tuple[List[Dict], Dict]:
                 t0 = time.perf_counter()
                 out = fn(prompt)
                 dt = time.perf_counter() - t0
-                acc = rubric_accuracy(out, expected)
+                acc = gsm8k_accuracy(out, expected) if dataset == "gsm8k" else rubric_accuracy(out, expected)
                 div = shannon_entropy_norm(out)
                 p_complexity = len(prompt.split()) / _MAX_PROMPT_LEN
                 records.append(
@@ -254,10 +309,14 @@ def run_benchmarks() -> Tuple[List[Dict], Dict]:
         # CPPTAI
         for run in (1, 2, 3):
             t0 = time.perf_counter()
-            result = orchestrator_main.solve(prompt)
-            text = result.get("final_answer", "")
+            if dataset == "gsm8k":
+                result = orchestrator_main.solve_gsm8k(prompt)
+                text = result.get("final_answer", "")
+            else:
+                result = orchestrator_main.solve(prompt)
+                text = result.get("final_answer", "")
             dt = time.perf_counter() - t0
-            acc = rubric_accuracy(text, expected)
+            acc = gsm8k_accuracy(text, expected) if dataset == "gsm8k" else rubric_accuracy(text, expected)
             div = shannon_entropy_norm(text)
             method_texts = [
                 baseline_cot(prompt),
@@ -296,10 +355,14 @@ def run_benchmarks() -> Tuple[List[Dict], Dict]:
         # Ablation: no Phase IV
         for run in (1, 2, 3):
             t0 = time.perf_counter()
-            result = (orchestrator_no_iv if use_no_iv else orchestrator_no_iv).solve(prompt)
-            text = result.get("final_answer", "")
+            if dataset == "gsm8k":
+                result = (orchestrator_no_iv if use_no_iv else orchestrator_no_iv).solve_gsm8k(prompt)
+                text = result.get("final_answer", "")
+            else:
+                result = (orchestrator_no_iv if use_no_iv else orchestrator_no_iv).solve(prompt)
+                text = result.get("final_answer", "")
             dt = time.perf_counter() - t0
-            acc = rubric_accuracy(text, expected)
+            acc = gsm8k_accuracy(text, expected) if dataset == "gsm8k" else rubric_accuracy(text, expected)
             div = shannon_entropy_norm(text)
             method_texts = [baseline_cot(prompt), baseline_tot(prompt), baseline_got(prompt), baseline_react(prompt), text]
             vecs = [hash_embedding(t) for t in method_texts]
@@ -331,10 +394,14 @@ def run_benchmarks() -> Tuple[List[Dict], Dict]:
         # Ablation: no Phase I
         for run in (1, 2, 3):
             t0 = time.perf_counter()
-            result = (orchestrator_no_iv if use_no_iv else orchestrator_no_i).solve(prompt)
-            text = result.get("final_answer", "")
+            if dataset == "gsm8k":
+                result = (orchestrator_no_iv if use_no_iv else orchestrator_no_i).solve_gsm8k(prompt)
+                text = result.get("final_answer", "")
+            else:
+                result = (orchestrator_no_iv if use_no_iv else orchestrator_no_i).solve(prompt)
+                text = result.get("final_answer", "")
             dt = time.perf_counter() - t0
-            acc = rubric_accuracy(text, expected)
+            acc = gsm8k_accuracy(text, expected) if dataset == "gsm8k" else rubric_accuracy(text, expected)
             div = shannon_entropy_norm(text)
             method_texts = [baseline_cot(prompt), baseline_tot(prompt), baseline_got(prompt), baseline_react(prompt), text]
             vecs = [hash_embedding(t) for t in method_texts]

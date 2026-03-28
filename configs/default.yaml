@@ -1,0 +1,8 @@
+seed: 0
+external_enabled: true
+cache_mode: cached
+cache_dir: .cache
+output_dir: artifacts
+benchmark_name: mixed
+model_name: DeepSeek-V3.2-Exp
+max_iterations: 100

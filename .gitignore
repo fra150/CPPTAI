@@ -55,6 +55,8 @@ cover/
 # Project artifacts
 *.pyc
 src/**/__pycache__/
+artifacts/
+run_*.json
 benchmarks.csv
 benchmarks.json
 benchmarks_summary.csv

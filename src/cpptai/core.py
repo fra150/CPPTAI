@@ -19,6 +19,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 from .types import DifficultyLevel, ProblemBlock
+from .io.cache import cache_get, cache_set
 from .deepseek_client import deepseek_chat, extract_text_answer
 from .presentation import arrange_solution_simple
 from .tasks import generate_informatics_tasks
@@ -276,6 +277,12 @@ class ConvergenceProtocol:
 
     def __init__(self, confidence_threshold: float = 0.7):
         self.threshold = confidence_threshold
+    
+    def _cache_mode(self) -> str:
+        return os.getenv("CPPTAI_CACHE_MODE", "online").strip().lower()
+    
+    def _cache_dir(self) -> str:
+        return os.getenv("CPPTAI_CACHE_DIR", ".cache")
 
     def convene_meeting(self, problem_context: Dict, failed_solution: Optional[Dict] = None) -> Dict:
         responses: Dict[str, Dict] = {}
@@ -300,6 +307,16 @@ class ConvergenceProtocol:
         """Simulate a web search engine or use Tavily API if available."""
         p = ctx.get("problem", "").lower()
         content = ""
+        mode = self._cache_mode()
+        cache_key = {"agent": "digital_oracle", "query": ctx.get("problem", "")}
+        if mode in ("cached", "offline"):
+            cached = cache_get(self._cache_dir(), "web", cache_key)
+            if cached:
+                return cached
+            if mode == "offline":
+                content = "Web search results: (offline) no cache entry available."
+                conf = self._compute_confidence(content, source="web")
+                return {"source": "web", "content": content, "confidence": conf}
         
         # Real API check
         tavily_key = os.getenv("TAVILY_API_KEY")
@@ -331,7 +348,10 @@ class ConvergenceProtocol:
                 content += "General knowledge indicates this is a multi-faceted issue requiring trade-offs."
         
         conf = self._compute_confidence(content, source="web")
-        return {"source": "web", "content": content, "confidence": conf}
+        out = {"source": "web", "content": content, "confidence": conf}
+        if mode == "cached":
+            cache_set(self._cache_dir(), "web", cache_key, out)
+        return out
 
     def _query_divergent_twin(self, ctx: Dict) -> Dict:
         """Simulate a second opinion from an LLM."""
@@ -383,6 +403,16 @@ class ConvergenceProtocol:
         """Simulate scientific literature database or use SerpAPI (Scholar)."""
         p = ctx.get("problem", "").lower()
         content = ""
+        mode = self._cache_mode()
+        cache_key = {"agent": "empirical_archive", "query": ctx.get("problem", "")}
+        if mode in ("cached", "offline"):
+            cached = cache_get(self._cache_dir(), "science", cache_key)
+            if cached:
+                return cached
+            if mode == "offline":
+                content = "Scientific DB: (offline) no cache entry available."
+                conf = self._compute_confidence(content, source="science")
+                return {"source": "science", "content": content, "confidence": conf}
 
         # Real API check
         serp_key = os.getenv("SERPAPI_API_KEY")
@@ -410,7 +440,10 @@ class ConvergenceProtocol:
                 content += "Found 12 relevant papers in arXiv and IEEE Xplore."
             
         conf = self._compute_confidence(content, source="science")
-        return {"source": "science", "content": content, "confidence": conf}
+        out = {"source": "science", "content": content, "confidence": conf}
+        if mode == "cached":
+            cache_set(self._cache_dir(), "science", cache_key, out)
+        return out
 
     def _query_divine_input(self, ctx: Dict) -> Dict:
         content = "Human-in-the-loop stub"
@@ -824,6 +857,26 @@ class CPPTAITraslocatore:
         final_result["tasks"] = generate_informatics_tasks(10)
         self._archive_complete_process(final_result)
         return final_result
+
+    def _extract_final_number_str(self, text: str) -> Optional[str]:
+        matches = re.findall(r"[-+]?\d+(?:,\d{3})*(?:\.\d+)?", text)
+        if not matches:
+            return None
+        raw = matches[-1].replace(",", "").strip()
+        if raw.endswith("."):
+            raw = raw[:-1]
+        return raw if raw else None
+
+    def solve_gsm8k(self, problem: str) -> Dict:
+        model = os.getenv("CPPTAI_MODEL", "DeepSeek-V3.2-Exp")
+        messages = [
+            {"role": "system", "content": "Solve the problem. Return only the final numeric answer."},
+            {"role": "user", "content": problem},
+        ]
+        resp = deepseek_chat(messages, model=model, stream=False)
+        content = extract_text_answer(resp) if resp else ""
+        answer = (self._extract_final_number_str(content or "") or (content or "").strip()).strip()
+        return {"final_answer": answer, "raw": content or ""}
 
     def _calculate_solution_confidence(self, answer_text: str) -> float:
         tokens = answer_text.split()
