@@ -155,5 +155,30 @@ target:      ~96/100 — con anomalia baselines chiarita + FULL 1319 + MATH/Huma
 - Il vecchio diario resta fonte primaria per 23-25/06. Questo diario NON lo riscrive, lo continua. Prossima voce: data del prossimo run, non della prossima analisi.
 - Regola del diario d'ora in poi: **ogni run >20 problemi aggiunge una riga qui con data, comando, N, accuracy, tempo, CSV**. Niente più salti di 2 mesi senza diario.
 
+## 5. Giorno 7 — 28/09/2026: sinergia CoT+CPPTAI (5 step, N=20 reali)
+
+Su richiesta utente, nuovo modo di verificare che CoT e CPPTAI funzionino INSIEME:
+`tests/test_cot_cpptai_synergy.py` (5 test, pipeline pensiero→analisi→meta→riduzione→output CoT+CPPTAI
+sullo stesso input ridotto) + `scripts/run_synergy_suite.py` (suite su N problemi).
+
+### 5A. Unit test: 5/5 OK in ~41s (API reale, problema Natalia atteso 72)
+CoT=1.0 e CPPTAI=1.0 sul ridotto (709ch → 132ch). Skip automatico senza `DEEPSEEK_API_KEY`.
+
+### 5B. Suite N=20 GSM8K reali (`benchmarks/synergy/synergy_20260928_164222.csv`, 333.5s, workers=2)
+| Metrica | Valore |
+|---|---|
+| CoT su originale | **1.000** (20/20) |
+| CoT su ridotto | **0.950** (19/20) |
+| CPPTAI su ridotto | **0.900** (18/20) |
+| SINERGIA (almeno uno risolve) | **0.950** (19/20) |
+| Riduzione media | 86.0 caratteri/problema |
+
+### 5C. Lettura onesta
+- Primi 20 GSM8K sono facili per CoT single-shot (100%): confermano che il confronto baselines vada fatto su N=100+,
+  non sui primi 20.
+- La riduzione toglie ~86ch ma costa ~5%: gsm8k_17 rotto per entrambi dopo la riduzione, gsm8k_8 rotto solo per CPPTAI.
+  La sinergia (OR dei due) recupera quasi tutto: 19/20.
+- Prossimo: stessa suite su N=100 per numeri solidi + ablation con/senza riduzione.
+
 ---
 *Nuovo diario aperto il 28/09/2026 dopo analisi completa del codice. Prossimo aggiornamento al primo run utile.*
