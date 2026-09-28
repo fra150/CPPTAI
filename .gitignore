@@ -224,3 +224,6 @@ __marimo__/
 # opencode runtime (150MB, rigenerabile)
 .opencode/node_modules/
 .opencode/*.log
+
+# opencode runtime (escluso su richiesta)
+.opencode/
