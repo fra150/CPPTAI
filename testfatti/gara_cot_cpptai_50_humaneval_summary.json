@@ -1,0 +1,12 @@
+{
+  "n": 50,
+  "cot_pass": 47,
+  "cpptai_pass": 49,
+  "cot_acc": 0.94,
+  "cpptai_acc": 0.98,
+  "cot_syntax_ok": 50,
+  "cpptai_syntax_ok": 50,
+  "cot_tempo_medio": 1.3,
+  "cpptai_tempo_medio": 21.2,
+  "tempo_totale_s": 575.3
+}

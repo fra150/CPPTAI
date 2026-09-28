@@ -180,5 +180,23 @@ CoT=1.0 e CPPTAI=1.0 sul ridotto (709ch → 132ch). Skip automatico senza `DEEPS
   La sinergia (OR dei due) recupera quasi tutto: 19/20.
 - Prossimo: stessa suite su N=100 per numeri solidi + ablation con/senza riduzione.
 
+## 6. Giorno 7 (sera) — GARA CoT vs CPPTAI, 50 problemi di programmazione
+
+Su richiesta utente: 50 test HumanEval REALI (primi 50 dello streaming HuggingFace), stesse regole —
+stesso prompt, stesso verificatore (esecuzione reale test in subprocess `python -I` sandboxato), pass@1.
+CoT = 1 chiamata DeepSeek; CPPTAI = pipeline completa + estrazione blocco ```python.
+Fix propedeutico: `datasets.py load_humaneval` ora conserva `test` + `entry_point` (prima li buttava).
+Script: `scripts/run_coding_race.py --n 50 --workers 2` → `benchmarks/coding_race/race_20260928_170022.csv` (575.3s).
+
+| | CoT | CPPTAI |
+|---|---|---|
+| Pass | **47/50 = 0.94** | **49/50 = 0.98** |
+| Sintassi ok | 50/50 | 50/50 |
+| Tempo/problema | 1.3s | 21.2s |
+
+Dettaglio appaiato: CPPTAI ha CORRETTO 3 problemi falliti da CoT (he_11, he_33, he_39) e ne ha ROTTO 1
+azzeccato da CoT (he_28). Stesso pattern del GSM8K N=200 (24 recuperi vs 5 rotture): la pipeline
+aggiunge valore anche sul codice, al costo di ~16x latenza. Entrambi 100% sintassi valida.
+
 ---
 *Nuovo diario aperto il 28/09/2026 dopo analisi completa del codice. Prossimo aggiornamento al primo run utile.*

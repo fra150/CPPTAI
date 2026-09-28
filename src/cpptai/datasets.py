@@ -198,7 +198,10 @@ class DatasetLoader:
                             "id": f"he_{i+1}",
                             "prompt": item["prompt"],
                             "expected": [item["canonical_solution"]],
-                            "dataset": "humaneval"
+                            "dataset": "humaneval",
+                            "test": item.get("test", ""),
+                            "entry_point": item.get("entry_point", ""),
+                            "task_id": item.get("task_id", f"he_{i+1}"),
                         })
                     except StopIteration:
                         break
@@ -212,7 +215,10 @@ class DatasetLoader:
                 "id": f"he_{i}",
                 "prompt": f"def add_numbers(a, b):\n    \"\"\" Add two numbers {i} times. \"\"\"",
                 "expected": ["return (a + b)"],
-                "dataset": "humaneval"
+                "dataset": "humaneval",
+                "test": "def check(f): assert f(1, 2) == 3; assert f(-1, 1) == 0",
+                "entry_point": "add_numbers",
+                "task_id": f"he_{i}",
             })
         return problems
 
