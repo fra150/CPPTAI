@@ -1,0 +1,7 @@
+problem_id,category,accuracy,time_sec,method,dataset
+gsm8k_1,word_problem,1.0,1.133,CPPTAI,gsm8k
+gsm8k_2,fraction,0.0,1.175,CPPTAI,gsm8k
+gsm8k_3,fraction,1.0,1.816,CPPTAI,gsm8k
+gsm8k_2,fraction,1.0,10.147,CPPTAI_pipeline,gsm8k
+gsm8k_1,word_problem,1.0,13.959,CPPTAI_pipeline,gsm8k
+gsm8k_3,fraction,1.0,14.153,CPPTAI_pipeline,gsm8k

@@ -1,0 +1,17 @@
+.git/
+__pycache__/
+*.pyc
+.env
+.env.example
+.cache/
+.pytest_cache/
+benchmarks/
+artifacts/
+*.csv
+*.json
+testfatti/
+tests/
+scripts/
+docs/
+.venv/
+venv/

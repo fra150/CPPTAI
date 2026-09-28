@@ -1,0 +1,18 @@
+seed: 0
+external_enabled: true
+cache_mode: cached
+cache_dir: .cache
+output_dir: artifacts
+benchmark_name: mixed
+model_name: DeepSeek-V3.2-Exp
+max_iterations: 100
+
+# --- Explorer + Analyzer (default: disabled) ---
+explorer_enabled: false
+analyzer_enabled: false
+explorer_num_trajectories: 5
+explorer_noise_level: 0.6
+explorer_temperature: 0.8
+explorer_denoising_steps: 3
+analyzer_ensemble_size: 3
+analyzer_coherence_threshold: 0.5

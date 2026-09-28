@@ -1,0 +1,11 @@
+problem_id,category,accuracy,time_sec,method,dataset
+gsm8k_2,fraction,0.0,1.285,CPPTAI,gsm8k
+gsm8k_1,word_problem,1.0,1.305,CPPTAI,gsm8k
+gsm8k_4,one_step,1.0,1.208,CPPTAI,gsm8k
+gsm8k_3,fraction,1.0,2.014,CPPTAI,gsm8k
+gsm8k_5,word_problem,0.0,1.088,CPPTAI,gsm8k
+gsm8k_1,word_problem,1.0,28.778,CPPTAI_EA,gsm8k
+gsm8k_2,fraction,1.0,31.011,CPPTAI_EA,gsm8k
+gsm8k_4,one_step,1.0,29.165,CPPTAI_EA,gsm8k
+gsm8k_3,fraction,1.0,34.495,CPPTAI_EA,gsm8k
+gsm8k_5,word_problem,1.0,33.48,CPPTAI_EA,gsm8k

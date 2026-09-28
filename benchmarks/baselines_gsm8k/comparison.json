@@ -1,0 +1,35 @@
+{
+  "n_problems": 20,
+  "results": {
+    "CPPTAI": {
+      "correct": 4,
+      "total": 20,
+      "accuracy": 20.0,
+      "time_sec": 45.9
+    },
+    "CoT": {
+      "correct": 20,
+      "total": 20,
+      "accuracy": 100.0,
+      "time_sec": 51.9
+    },
+    "ToT": {
+      "correct": 19,
+      "total": 20,
+      "accuracy": 95.0,
+      "time_sec": 175.1
+    },
+    "GoT": {
+      "correct": 17,
+      "total": 20,
+      "accuracy": 85.0,
+      "time_sec": 76.9
+    },
+    "ReAct": {
+      "correct": 20,
+      "total": 20,
+      "accuracy": 100.0,
+      "time_sec": 67.6
+    }
+  }
+}

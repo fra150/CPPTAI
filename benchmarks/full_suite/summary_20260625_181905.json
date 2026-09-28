@@ -1,0 +1,24 @@
+{
+  "timestamp": "20260625_181905",
+  "total_problems": 100,
+  "average_accuracy": 0.94,
+  "by_dataset": {
+    "gsm8k": {
+      "n": 100,
+      "correct": 94,
+      "accuracy": 0.94
+    }
+  },
+  "by_method": {
+    "CPPTAI": {
+      "n": 50,
+      "correct": 45,
+      "accuracy": 0.9
+    },
+    "CPPTAI_pipeline": {
+      "n": 50,
+      "correct": 49,
+      "accuracy": 0.98
+    }
+  }
+}

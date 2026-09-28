@@ -1,0 +1,1839 @@
+## Risultati (materiali “paper-ready” + “technical spec”) — CPPTAI V2.0md
+
+Data: 2026-03-28
+
+### 1) Benchmark eseguiti (offline)
+
+Comando eseguito:
+
+```powershell
+python scripts/run_suite.py --config configs/offline.yaml
+```
+
+Output osservato:
+
+```text
+Run ID: b4014d21-40ef-4abc-9a5f-bae443779339
+Final Answer: Solution collapsed at ground floor with confidence 0.23
+Failed to load MATH from HuggingFace: Dataset 'competition_math' doesn't exist on the Hub or cannot be accessed.. Falling back to stubs.
+Benchmarks: {'CoT': {'accuracy': 0.0, 'error_rate': 1.0, 'diversity': 0.992, 'time_sec': 0.0, 'tokens': 17.0, 'robust_diversity': 0.0, 'clusters': 0.0}, 'ToT': {'accuracy': 0.072, 'error_rate': 0.928, 'diversity': 1.0, 'time_sec': 0.0, 'tokens': 15.0, 'robust_diversity': 0.0, 'clusters': 0.0}, 'GoT': {'accuracy': 0.0, 'error_rate': 1.0, 'diversity': 1.0, 'time_sec': 0.0, 'tokens': 14.0, 'robust_diversity': 0.0, 'clusters': 0.0}, 'ReAct': {'accuracy': 0.072, 'error_rate': 0.928, 'diversity': 0.985, 'time_sec': 0.0, 'tokens': 16.0, 'robust_diversity': 0.0, 'clusters': 0.0}, 'CPPTAI': {'accuracy': 0.722, 'error_rate': 0.278, 'diversity': 0.994, 'time_sec': 0.014, 'tokens': 42.0, 'robust_diversity': 0.82, 'clusters': 3.0}, 'CPPTAI_no_IV': {'accuracy': 0.722, 'error_rate': 0.278, 'diversity': 0.994, 'time_sec': 0.014, 'tokens': 42.0, 'robust_diversity': 0.82, 'clusters': 3.0}, 'CPPTAI_no_I': {'accuracy': 0.722, 'error_rate': 0.278, 'diversity': 0.994, 'time_sec': 0.014, 'tokens': 42.0, 'robust_diversity': 0.82, 'clusters': 3.0}}
+```
+
+File prodotto (metriche aggregate):
+- `artifacts/benchmarks_summary.json`
+
+### 2) Esempio reale di run_{uuid}.json (artifact V2)
+
+Artifact generato:
+- `artifacts/run_b4014d21-40ef-4abc-9a5f-bae443779339.json`
+
+Estratto (PhaseOutputs + attribution/counterfactual):
+
+```json
+{
+  "run_id": "b4014d21-40ef-4abc-9a5f-bae443779339",
+  "benchmark_name": "mixed_offline",
+  "external_enabled": false,
+  "cache_mode": "offline",
+  "phase_outputs": [
+    {
+      "name": "phase3_cognitive_descent",
+      "output": {
+        "final_answer": "Solution collapsed at ground floor with confidence 0.23",
+        "counterfactual_summary": "If we skipped floor 5, S would be ≈ 0.229",
+        "attribution_explanation": "Floor 9: ΔS=-0.007 → B1:-0.007\\n..."
+      }
+    }
+  ]
+}
+```
+
+### 3) Elenco benchmark caricati + fallback
+
+Nel run offline:
+- `energy_synthetic`: OK
+- `gsm8k`: OK (streaming se disponibile, altrimenti stub)
+- `humaneval`: OK (streaming se disponibile, altrimenti stub)
+- `math`: FALLBACK su stub perché `competition_math` non accessibile nel registry HF
+- `scibench`: stub deterministico (per evitare instabilità/availability)
+
+Log di fallback osservato:
+
+```text
+Failed to load MATH from HuggingFace: Dataset 'competition_math' doesn't exist on the Hub or cannot be accessed.. Falling back to stubs.
+```
+
+### 4) Risultati su subset GSM8K e HumanEval + verifier usato
+
+Verifier attuale nel benchmark runner:
+- `rubric_accuracy()` (match testuale + sinonimi per energy + tolleranza numerica semplice).
+
+Aggregazione per “dataset” (inferita da `problem_id` prefix in `benchmarks.csv`):
+
+```text
+energy_synthetic
+  CPPTAI: n=156 mean_acc=1.000
+  CPPTAI_no_I: n=156 mean_acc=1.000
+  CPPTAI_no_IV: n=156 mean_acc=1.000
+  CoT: n=156 mean_acc=0.000
+  GoT: n=156 mean_acc=0.000
+  ReAct: n=156 mean_acc=0.100
+  ToT: n=156 mean_acc=0.100
+
+gsm8k
+  CPPTAI: n=15 mean_acc=0.000
+  ...
+
+humaneval
+  CPPTAI: n=15 mean_acc=0.000
+  ...
+```
+
+Nota: in questo stato, CPPTAI produce un output non “answer-key aligned” per GSM8K/HumanEval, quindi il rubric testuale assegna 0. Questo è coerente con l’attuale implementazione (manca un solver specifico/verifier per quei dataset).
+
+### 5) Esempio cache record (deterministic replay)
+
+Comando eseguito (cached mode, senza benchmark):
+
+```powershell
+python scripts/run_suite.py --config configs/default.yaml --no-benchmark
+```
+
+Cache record prodotto:
+- `.cache/web_72596c79593dfb0057d2754f2fd2005a8c0de9cec13c418bdfea29b39ba1364f.json`
+
+Contenuto:
+
+```json
+{"source": "web", "content": "Web search results: Recent reports from IEA indicate 20% growth in renewables. Global battery storage capacity doubled in 2024. Nuclear fusion breakthrough at NIF confirmed net gain.", "confidence": 0.27}
+```
+
+### 6) CI (offline checks)
+
+Workflow presente:
+- `.github/workflows/ci.yml`
+
+Passi chiave:
+- install dipendenze da `requirements.txt`
+- run unit tests: `python -m unittest discover -s tests -p "test_*.py" -q`
+- smoke test v2 offline: `python src/main.py --v2 --offline --no-benchmark`
+
+-----------------------------------------------------------------
+### 7) Estratto completo di benchmarks.csv (riga per riga)
+
+Parte 1/3:
+
+```csv
+problem_id,method,accuracy,error_rate,diversity,time_sec,tokens,robust_diversity,clusters,problem_complexity
+energy_crisis_1,CoT,0.0,1.0,0.992,0.0,17,,,0.345
+energy_crisis_1,CoT,0.0,1.0,0.992,0.0,17,,,0.345
+energy_crisis_1,CoT,0.0,1.0,0.992,0.0,17,,,0.345
+energy_crisis_1,ToT,0.1,0.9,1.0,0.0,15,,,0.345
+energy_crisis_1,ToT,0.1,0.9,1.0,0.0,15,,,0.345
+energy_crisis_1,ToT,0.1,0.9,1.0,0.0,15,,,0.345
+energy_crisis_1,GoT,0.0,1.0,1.0,0.0,14,,,0.345
+energy_crisis_1,GoT,0.0,1.0,1.0,0.0,14,,,0.345
+energy_crisis_1,GoT,0.0,1.0,1.0,0.0,14,,,0.345
+energy_crisis_1,ReAct,0.1,0.9,0.985,0.0,16,,,0.345
+energy_crisis_1,ReAct,0.1,0.9,0.985,0.0,16,,,0.345
+energy_crisis_1,ReAct,0.1,0.9,0.985,0.0,16,,,0.345
+energy_crisis_1,CPPTAI,1.0,0.0,0.992,0.001,51,0.812,3,0.345
+energy_crisis_1,CPPTAI,1.0,0.0,0.992,0.001,51,0.812,3,0.345
+energy_crisis_1,CPPTAI,1.0,0.0,0.992,0.001,51,0.812,3,0.345
+energy_crisis_1,CPPTAI_no_IV,1.0,0.0,0.992,0.001,51,0.812,3,0.345
+energy_crisis_1,CPPTAI_no_IV,1.0,0.0,0.992,0.001,51,0.812,3,0.345
+energy_crisis_1,CPPTAI_no_IV,1.0,0.0,0.992,0.001,51,0.812,3,0.345
+energy_crisis_1,CPPTAI_no_I,1.0,0.0,0.992,0.001,51,0.812,3,0.345
+energy_crisis_1,CPPTAI_no_I,1.0,0.0,0.992,0.001,51,0.812,3,0.345
+energy_crisis_1,CPPTAI_no_I,1.0,0.0,0.992,0.001,51,0.812,3,0.345
+energy_crisis_2,CoT,0.0,1.0,0.992,0.0,17,,,0.345
+energy_crisis_2,CoT,0.0,1.0,0.992,0.0,17,,,0.345
+energy_crisis_2,CoT,0.0,1.0,0.992,0.0,17,,,0.345
+energy_crisis_2,ToT,0.1,0.9,1.0,0.0,15,,,0.345
+energy_crisis_2,ToT,0.1,0.9,1.0,0.0,15,,,0.345
+energy_crisis_2,ToT,0.1,0.9,1.0,0.0,15,,,0.345
+energy_crisis_2,GoT,0.0,1.0,1.0,0.0,14,,,0.345
+energy_crisis_2,GoT,0.0,1.0,1.0,0.0,14,,,0.345
+energy_crisis_2,GoT,0.0,1.0,1.0,0.0,14,,,0.345
+energy_crisis_2,ReAct,0.1,0.9,0.985,0.0,16,,,0.345
+energy_crisis_2,ReAct,0.1,0.9,0.985,0.0,16,,,0.345
+energy_crisis_2,ReAct,0.1,0.9,0.985,0.0,16,,,0.345
+energy_crisis_2,CPPTAI,1.0,0.0,0.992,0.001,51,0.812,3,0.345
+energy_crisis_2,CPPTAI,1.0,0.0,0.992,0.001,51,0.812,3,0.345
+energy_crisis_2,CPPTAI,1.0,0.0,0.992,0.001,51,0.812,3,0.345
+energy_crisis_2,CPPTAI_no_IV,1.0,0.0,0.992,0.001,51,0.812,3,0.345
+energy_crisis_2,CPPTAI_no_IV,1.0,0.0,0.992,0.001,51,0.812,3,0.345
+energy_crisis_2,CPPTAI_no_IV,1.0,0.0,0.992,0.001,51,0.812,3,0.345
+energy_crisis_2,CPPTAI_no_I,1.0,0.0,0.992,0.001,51,0.812,3,0.345
+energy_crisis_2,CPPTAI_no_I,1.0,0.0,0.992,0.001,51,0.812,3,0.345
+energy_crisis_2,CPPTAI_no_I,1.0,0.0,0.992,0.002,51,0.812,3,0.345
+energy_crisis_3,CoT,0.0,1.0,0.992,0.0,17,,,0.345
+energy_crisis_3,CoT,0.0,1.0,0.992,0.0,17,,,0.345
+energy_crisis_3,CoT,0.0,1.0,0.992,0.0,17,,,0.345
+energy_crisis_3,ToT,0.1,0.9,1.0,0.0,15,,,0.345
+energy_crisis_3,ToT,0.1,0.9,1.0,0.0,15,,,0.345
+energy_crisis_3,ToT,0.1,0.9,1.0,0.0,15,,,0.345
+energy_crisis_3,GoT,0.0,1.0,1.0,0.0,14,,,0.345
+energy_crisis_3,GoT,0.0,1.0,1.0,0.0,14,,,0.345
+energy_crisis_3,GoT,0.0,1.0,1.0,0.0,14,,,0.345
+energy_crisis_3,ReAct,0.1,0.9,0.985,0.0,16,,,0.345
+energy_crisis_3,ReAct,0.1,0.9,0.985,0.0,16,,,0.345
+energy_crisis_3,ReAct,0.1,0.9,0.985,0.0,16,,,0.345
+energy_crisis_3,CPPTAI,1.0,0.0,0.992,0.001,51,0.812,3,0.345
+energy_crisis_3,CPPTAI,1.0,0.0,0.992,0.001,51,0.812,3,0.345
+energy_crisis_3,CPPTAI,1.0,0.0,0.992,0.001,51,0.812,3,0.345
+energy_crisis_3,CPPTAI_no_IV,1.0,0.0,0.992,0.002,51,0.812,3,0.345
+energy_crisis_3,CPPTAI_no_IV,1.0,0.0,0.992,0.002,51,0.812,3,0.345
+energy_crisis_3,CPPTAI_no_IV,1.0,0.0,0.992,0.002,51,0.812,3,0.345
+energy_crisis_3,CPPTAI_no_I,1.0,0.0,0.992,0.002,51,0.812,3,0.345
+energy_crisis_3,CPPTAI_no_I,1.0,0.0,0.992,0.002,51,0.812,3,0.345
+energy_crisis_3,CPPTAI_no_I,1.0,0.0,0.992,0.002,51,0.812,3,0.345
+energy_crisis_4,CoT,0.0,1.0,0.992,0.0,17,,,0.368
+energy_crisis_4,CoT,0.0,1.0,0.992,0.0,17,,,0.368
+energy_crisis_4,CoT,0.0,1.0,0.992,0.0,17,,,0.368
+energy_crisis_4,ToT,0.1,0.9,1.0,0.0,15,,,0.368
+energy_crisis_4,ToT,0.1,0.9,1.0,0.0,15,,,0.368
+energy_crisis_4,ToT,0.1,0.9,1.0,0.0,15,,,0.368
+energy_crisis_4,GoT,0.0,1.0,1.0,0.0,14,,,0.368
+energy_crisis_4,GoT,0.0,1.0,1.0,0.0,14,,,0.368
+energy_crisis_4,GoT,0.0,1.0,1.0,0.0,14,,,0.368
+energy_crisis_4,ReAct,0.1,0.9,0.985,0.0,16,,,0.368
+energy_crisis_4,ReAct,0.1,0.9,0.985,0.0,16,,,0.368
+energy_crisis_4,ReAct,0.1,0.9,0.985,0.0,16,,,0.368
+energy_crisis_4,CPPTAI,1.0,0.0,0.992,0.002,51,0.812,3,0.368
+energy_crisis_4,CPPTAI,1.0,0.0,0.992,0.002,51,0.812,3,0.368
+energy_crisis_4,CPPTAI,1.0,0.0,0.992,0.002,51,0.812,3,0.368
+energy_crisis_4,CPPTAI_no_IV,1.0,0.0,0.992,0.002,51,0.812,3,0.368
+energy_crisis_4,CPPTAI_no_IV,1.0,0.0,0.992,0.002,51,0.812,3,0.368
+energy_crisis_4,CPPTAI_no_IV,1.0,0.0,0.992,0.002,51,0.812,3,0.368
+energy_crisis_4,CPPTAI_no_I,1.0,0.0,0.992,0.002,51,0.812,3,0.368
+energy_crisis_4,CPPTAI_no_I,1.0,0.0,0.992,0.002,51,0.812,3,0.368
+energy_crisis_4,CPPTAI_no_I,1.0,0.0,0.992,0.002,51,0.812,3,0.368
+energy_crisis_5,CoT,0.0,1.0,0.992,0.0,17,,,0.368
+energy_crisis_5,CoT,0.0,1.0,0.992,0.0,17,,,0.368
+energy_crisis_5,CoT,0.0,1.0,0.992,0.0,17,,,0.368
+energy_crisis_5,ToT,0.1,0.9,1.0,0.0,15,,,0.368
+energy_crisis_5,ToT,0.1,0.9,1.0,0.0,15,,,0.368
+energy_crisis_5,ToT,0.1,0.9,1.0,0.0,15,,,0.368
+energy_crisis_5,GoT,0.0,1.0,1.0,0.0,14,,,0.368
+energy_crisis_5,GoT,0.0,1.0,1.0,0.0,14,,,0.368
+energy_crisis_5,GoT,0.0,1.0,1.0,0.0,14,,,0.368
+energy_crisis_5,ReAct,0.1,0.9,0.985,0.0,16,,,0.368
+energy_crisis_5,ReAct,0.1,0.9,0.985,0.0,16,,,0.368
+energy_crisis_5,ReAct,0.1,0.9,0.985,0.0,16,,,0.368
+energy_crisis_5,CPPTAI,1.0,0.0,0.992,0.002,51,0.812,3,0.368
+energy_crisis_5,CPPTAI,1.0,0.0,0.992,0.002,51,0.812,3,0.368
+energy_crisis_5,CPPTAI,1.0,0.0,0.992,0.002,51,0.812,3,0.368
+energy_crisis_5,CPPTAI_no_IV,1.0,0.0,0.992,0.002,51,0.812,3,0.368
+energy_crisis_5,CPPTAI_no_IV,1.0,0.0,0.992,0.002,51,0.812,3,0.368
+energy_crisis_5,CPPTAI_no_IV,1.0,0.0,0.992,0.003,51,0.812,3,0.368
+energy_crisis_5,CPPTAI_no_I,1.0,0.0,0.992,0.002,51,0.812,3,0.368
+energy_crisis_5,CPPTAI_no_I,1.0,0.0,0.992,0.002,51,0.812,3,0.368
+energy_crisis_5,CPPTAI_no_I,1.0,0.0,0.992,0.002,51,0.812,3,0.368
+energy_crisis_6,CoT,0.0,1.0,0.992,0.0,17,,,0.368
+energy_crisis_6,CoT,0.0,1.0,0.992,0.0,17,,,0.368
+energy_crisis_6,CoT,0.0,1.0,0.992,0.0,17,,,0.368
+energy_crisis_6,ToT,0.1,0.9,1.0,0.0,15,,,0.368
+energy_crisis_6,ToT,0.1,0.9,1.0,0.0,15,,,0.368
+energy_crisis_6,ToT,0.1,0.9,1.0,0.0,15,,,0.368
+energy_crisis_6,GoT,0.0,1.0,1.0,0.0,14,,,0.368
+energy_crisis_6,GoT,0.0,1.0,1.0,0.0,14,,,0.368
+energy_crisis_6,GoT,0.0,1.0,1.0,0.0,14,,,0.368
+energy_crisis_6,ReAct,0.1,0.9,0.985,0.0,16,,,0.368
+energy_crisis_6,ReAct,0.1,0.9,0.985,0.0,16,,,0.368
+energy_crisis_6,ReAct,0.1,0.9,0.985,0.0,16,,,0.368
+energy_crisis_6,CPPTAI,1.0,0.0,0.992,0.003,51,0.812,3,0.368
+energy_crisis_6,CPPTAI,1.0,0.0,0.992,0.003,51,0.812,3,0.368
+energy_crisis_6,CPPTAI,1.0,0.0,0.992,0.002,51,0.812,3,0.368
+energy_crisis_6,CPPTAI_no_IV,1.0,0.0,0.992,0.003,51,0.812,3,0.368
+energy_crisis_6,CPPTAI_no_IV,1.0,0.0,0.992,0.003,51,0.812,3,0.368
+energy_crisis_6,CPPTAI_no_IV,1.0,0.0,0.992,0.003,51,0.812,3,0.368
+energy_crisis_6,CPPTAI_no_I,1.0,0.0,0.992,0.003,51,0.812,3,0.368
+energy_crisis_6,CPPTAI_no_I,1.0,0.0,0.992,0.003,51,0.812,3,0.368
+energy_crisis_6,CPPTAI_no_I,1.0,0.0,0.992,0.003,51,0.812,3,0.368
+energy_crisis_7,CoT,0.0,1.0,0.992,0.0,17,,,0.356
+energy_crisis_7,CoT,0.0,1.0,0.992,0.0,17,,,0.356
+energy_crisis_7,CoT,0.0,1.0,0.992,0.0,17,,,0.356
+energy_crisis_7,ToT,0.1,0.9,1.0,0.0,15,,,0.356
+energy_crisis_7,ToT,0.1,0.9,1.0,0.0,15,,,0.356
+energy_crisis_7,ToT,0.1,0.9,1.0,0.0,15,,,0.356
+energy_crisis_7,GoT,0.0,1.0,1.0,0.0,14,,,0.356
+energy_crisis_7,GoT,0.0,1.0,1.0,0.0,14,,,0.356
+energy_crisis_7,GoT,0.0,1.0,1.0,0.0,14,,,0.356
+energy_crisis_7,ReAct,0.1,0.9,0.985,0.0,16,,,0.356
+energy_crisis_7,ReAct,0.1,0.9,0.985,0.0,16,,,0.356
+energy_crisis_7,ReAct,0.1,0.9,0.985,0.0,16,,,0.356
+energy_crisis_7,CPPTAI,1.0,0.0,0.992,0.003,51,0.812,3,0.356
+energy_crisis_7,CPPTAI,1.0,0.0,0.992,0.003,51,0.812,3,0.356
+energy_crisis_7,CPPTAI,1.0,0.0,0.992,0.003,51,0.812,3,0.356
+energy_crisis_7,CPPTAI_no_IV,1.0,0.0,0.992,0.003,51,0.812,3,0.356
+energy_crisis_7,CPPTAI_no_IV,1.0,0.0,0.992,0.003,51,0.812,3,0.356
+energy_crisis_7,CPPTAI_no_IV,1.0,0.0,0.992,0.003,51,0.812,3,0.356
+energy_crisis_7,CPPTAI_no_I,1.0,0.0,0.992,0.003,51,0.812,3,0.356
+energy_crisis_7,CPPTAI_no_I,1.0,0.0,0.992,0.003,51,0.812,3,0.356
+energy_crisis_7,CPPTAI_no_I,1.0,0.0,0.992,0.003,51,0.812,3,0.356
+energy_crisis_8,CoT,0.0,1.0,0.992,0.0,17,,,0.356
+energy_crisis_8,CoT,0.0,1.0,0.992,0.0,17,,,0.356
+energy_crisis_8,CoT,0.0,1.0,0.992,0.0,17,,,0.356
+energy_crisis_8,ToT,0.1,0.9,1.0,0.0,15,,,0.356
+energy_crisis_8,ToT,0.1,0.9,1.0,0.0,15,,,0.356
+energy_crisis_8,ToT,0.1,0.9,1.0,0.0,15,,,0.356
+energy_crisis_8,GoT,0.0,1.0,1.0,0.0,14,,,0.356
+energy_crisis_8,GoT,0.0,1.0,1.0,0.0,14,,,0.356
+energy_crisis_8,GoT,0.0,1.0,1.0,0.0,14,,,0.356
+energy_crisis_8,ReAct,0.1,0.9,0.985,0.0,16,,,0.356
+energy_crisis_8,ReAct,0.1,0.9,0.985,0.0,16,,,0.356
+energy_crisis_8,ReAct,0.1,0.9,0.985,0.0,16,,,0.356
+energy_crisis_8,CPPTAI,1.0,0.0,0.992,0.003,51,0.812,3,0.356
+energy_crisis_8,CPPTAI,1.0,0.0,0.992,0.003,51,0.812,3,0.356
+energy_crisis_8,CPPTAI,1.0,0.0,0.992,0.003,51,0.812,3,0.356
+energy_crisis_8,CPPTAI_no_IV,1.0,0.0,0.992,0.004,51,0.812,3,0.356
+energy_crisis_8,CPPTAI_no_IV,1.0,0.0,0.992,0.003,51,0.812,3,0.356
+energy_crisis_8,CPPTAI_no_IV,1.0,0.0,0.992,0.003,51,0.812,3,0.356
+energy_crisis_8,CPPTAI_no_I,1.0,0.0,0.992,0.003,51,0.812,3,0.356
+energy_crisis_8,CPPTAI_no_I,1.0,0.0,0.992,0.003,51,0.812,3,0.356
+energy_crisis_8,CPPTAI_no_I,1.0,0.0,0.992,0.003,51,0.812,3,0.356
+energy_crisis_9,CoT,0.0,1.0,0.992,0.0,17,,,0.356
+energy_crisis_9,CoT,0.0,1.0,0.992,0.0,17,,,0.356
+energy_crisis_9,CoT,0.0,1.0,0.992,0.0,17,,,0.356
+energy_crisis_9,ToT,0.1,0.9,1.0,0.0,15,,,0.356
+energy_crisis_9,ToT,0.1,0.9,1.0,0.0,15,,,0.356
+energy_crisis_9,ToT,0.1,0.9,1.0,0.0,15,,,0.356
+energy_crisis_9,GoT,0.0,1.0,1.0,0.0,14,,,0.356
+energy_crisis_9,GoT,0.0,1.0,1.0,0.0,14,,,0.356
+energy_crisis_9,GoT,0.0,1.0,1.0,0.0,14,,,0.356
+energy_crisis_9,ReAct,0.1,0.9,0.985,0.0,16,,,0.356
+energy_crisis_9,ReAct,0.1,0.9,0.985,0.0,16,,,0.356
+energy_crisis_9,ReAct,0.1,0.9,0.985,0.0,16,,,0.356
+energy_crisis_9,CPPTAI,1.0,0.0,0.992,0.004,51,0.812,3,0.356
+energy_crisis_9,CPPTAI,1.0,0.0,0.992,0.004,51,0.812,3,0.356
+energy_crisis_9,CPPTAI,1.0,0.0,0.992,0.004,51,0.812,3,0.356
+energy_crisis_9,CPPTAI_no_IV,1.0,0.0,0.992,0.004,51,0.812,3,0.356
+energy_crisis_9,CPPTAI_no_IV,1.0,0.0,0.992,0.004,51,0.812,3,0.356
+energy_crisis_9,CPPTAI_no_IV,1.0,0.0,0.992,0.004,51,0.812,3,0.356
+energy_crisis_9,CPPTAI_no_I,1.0,0.0,0.992,0.004,51,0.812,3,0.356
+energy_crisis_9,CPPTAI_no_I,1.0,0.0,0.992,0.004,51,0.812,3,0.356
+energy_crisis_9,CPPTAI_no_I,1.0,0.0,0.992,0.004,51,0.812,3,0.356
+energy_crisis_10,CoT,0.0,1.0,0.992,0.0,17,,,0.345
+energy_crisis_10,CoT,0.0,1.0,0.992,0.0,17,,,0.345
+energy_crisis_10,CoT,0.0,1.0,0.992,0.0,17,,,0.345
+energy_crisis_10,ToT,0.1,0.9,1.0,0.0,15,,,0.345
+energy_crisis_10,ToT,0.1,0.9,1.0,0.0,15,,,0.345
+energy_crisis_10,ToT,0.1,0.9,1.0,0.0,15,,,0.345
+energy_crisis_10,GoT,0.0,1.0,1.0,0.0,14,,,0.345
+energy_crisis_10,GoT,0.0,1.0,1.0,0.0,14,,,0.345
+energy_crisis_10,GoT,0.0,1.0,1.0,0.0,14,,,0.345
+energy_crisis_10,ReAct,0.1,0.9,0.985,0.0,16,,,0.345
+energy_crisis_10,ReAct,0.1,0.9,0.985,0.0,16,,,0.345
+energy_crisis_10,ReAct,0.1,0.9,0.985,0.0,16,,,0.345
+energy_crisis_10,CPPTAI,1.0,0.0,0.992,0.004,51,0.812,3,0.345
+energy_crisis_10,CPPTAI,1.0,0.0,0.992,0.004,51,0.812,3,0.345
+energy_crisis_10,CPPTAI,1.0,0.0,0.992,0.004,51,0.812,3,0.345
+energy_crisis_10,CPPTAI_no_IV,1.0,0.0,0.992,0.004,51,0.812,3,0.345
+energy_crisis_10,CPPTAI_no_IV,1.0,0.0,0.992,0.004,51,0.812,3,0.345
+energy_crisis_10,CPPTAI_no_IV,1.0,0.0,0.992,0.004,51,0.812,3,0.345
+energy_crisis_10,CPPTAI_no_I,1.0,0.0,0.992,0.004,51,0.812,3,0.345
+energy_crisis_10,CPPTAI_no_I,1.0,0.0,0.992,0.004,51,0.812,3,0.345
+energy_crisis_10,CPPTAI_no_I,1.0,0.0,0.992,0.005,51,0.812,3,0.345
+energy_crisis_11,CoT,0.0,1.0,0.992,0.0,17,,,0.345
+energy_crisis_11,CoT,0.0,1.0,0.992,0.0,17,,,0.345
+energy_crisis_11,CoT,0.0,1.0,0.992,0.0,17,,,0.345
+energy_crisis_11,ToT,0.1,0.9,1.0,0.0,15,,,0.345
+energy_crisis_11,ToT,0.1,0.9,1.0,0.0,15,,,0.345
+energy_crisis_11,ToT,0.1,0.9,1.0,0.0,15,,,0.345
+energy_crisis_11,GoT,0.0,1.0,1.0,0.0,14,,,0.345
+energy_crisis_11,GoT,0.0,1.0,1.0,0.0,14,,,0.345
+energy_crisis_11,GoT,0.0,1.0,1.0,0.0,14,,,0.345
+energy_crisis_11,ReAct,0.1,0.9,0.985,0.0,16,,,0.345
+energy_crisis_11,ReAct,0.1,0.9,0.985,0.0,16,,,0.345
+energy_crisis_11,ReAct,0.1,0.9,0.985,0.0,16,,,0.345
+energy_crisis_11,CPPTAI,1.0,0.0,0.992,0.004,51,0.812,3,0.345
+energy_crisis_11,CPPTAI,1.0,0.0,0.992,0.004,51,0.812,3,0.345
+energy_crisis_11,CPPTAI,1.0,0.0,0.992,0.004,51,0.812,3,0.345
+energy_crisis_11,CPPTAI_no_IV,1.0,0.0,0.992,0.004,51,0.812,3,0.345
+energy_crisis_11,CPPTAI_no_IV,1.0,0.0,0.992,0.005,51,0.812,3,0.345
+energy_crisis_11,CPPTAI_no_IV,1.0,0.0,0.992,0.004,51,0.812,3,0.345
+energy_crisis_11,CPPTAI_no_I,1.0,0.0,0.992,0.004,51,0.812,3,0.345
+energy_crisis_11,CPPTAI_no_I,1.0,0.0,0.992,0.004,51,0.812,3,0.345
+energy_crisis_11,CPPTAI_no_I,1.0,0.0,0.992,0.004,51,0.812,3,0.345
+energy_crisis_12,CoT,0.0,1.0,0.992,0.0,17,,,0.345
+energy_crisis_12,CoT,0.0,1.0,0.992,0.0,17,,,0.345
+energy_crisis_12,CoT,0.0,1.0,0.992,0.0,17,,,0.345
+energy_crisis_12,ToT,0.1,0.9,1.0,0.0,15,,,0.345
+energy_crisis_12,ToT,0.1,0.9,1.0,0.0,15,,,0.345
+energy_crisis_12,ToT,0.1,0.9,1.0,0.0,15,,,0.345
+energy_crisis_12,GoT,0.0,1.0,1.0,0.0,14,,,0.345
+energy_crisis_12,GoT,0.0,1.0,1.0,0.0,14,,,0.345
+energy_crisis_12,GoT,0.0,1.0,1.0,0.0,14,,,0.345
+energy_crisis_12,ReAct,0.1,0.9,0.985,0.0,16,,,0.345
+energy_crisis_12,ReAct,0.1,0.9,0.985,0.0,16,,,0.345
+energy_crisis_12,ReAct,0.1,0.9,0.985,0.0,16,,,0.345
+energy_crisis_12,CPPTAI,1.0,0.0,0.992,0.004,51,0.812,3,0.345
+energy_crisis_12,CPPTAI,1.0,0.0,0.992,0.005,51,0.812,3,0.345
+energy_crisis_12,CPPTAI,1.0,0.0,0.992,0.004,51,0.812,3,0.345
+energy_crisis_12,CPPTAI_no_IV,1.0,0.0,0.992,0.005,51,0.812,3,0.345
+energy_crisis_12,CPPTAI_no_IV,1.0,0.0,0.992,0.006,51,0.812,3,0.345
+energy_crisis_12,CPPTAI_no_IV,1.0,0.0,0.992,0.005,51,0.812,3,0.345
+energy_crisis_12,CPPTAI_no_I,1.0,0.0,0.992,0.005,51,0.812,3,0.345
+energy_crisis_12,CPPTAI_no_I,1.0,0.0,0.992,0.006,51,0.812,3,0.345
+energy_crisis_12,CPPTAI_no_I,1.0,0.0,0.992,0.005,51,0.812,3,0.345
+energy_crisis_13,CoT,0.0,1.0,0.992,0.0,17,,,0.368
+energy_crisis_13,CoT,0.0,1.0,0.992,0.0,17,,,0.368
+energy_crisis_13,CoT,0.0,1.0,0.992,0.0,17,,,0.368
+energy_crisis_13,ToT,0.1,0.9,1.0,0.0,15,,,0.368
+energy_crisis_13,ToT,0.1,0.9,1.0,0.0,15,,,0.368
+energy_crisis_13,ToT,0.1,0.9,1.0,0.0,15,,,0.368
+energy_crisis_13,GoT,0.0,1.0,1.0,0.0,14,,,0.368
+energy_crisis_13,GoT,0.0,1.0,1.0,0.0,14,,,0.368
+energy_crisis_13,GoT,0.0,1.0,1.0,0.0,14,,,0.368
+energy_crisis_13,ReAct,0.1,0.9,0.985,0.0,16,,,0.368
+energy_crisis_13,ReAct,0.1,0.9,0.985,0.0,16,,,0.368
+energy_crisis_13,ReAct,0.1,0.9,0.985,0.0,16,,,0.368
+energy_crisis_13,CPPTAI,1.0,0.0,0.992,0.005,51,0.812,3,0.368
+energy_crisis_13,CPPTAI,1.0,0.0,0.992,0.005,51,0.812,3,0.368
+energy_crisis_13,CPPTAI,1.0,0.0,0.992,0.005,51,0.812,3,0.368
+energy_crisis_13,CPPTAI_no_IV,1.0,0.0,0.992,0.005,51,0.812,3,0.368
+energy_crisis_13,CPPTAI_no_IV,1.0,0.0,0.992,0.005,51,0.812,3,0.368
+energy_crisis_13,CPPTAI_no_IV,1.0,0.0,0.992,0.005,51,0.812,3,0.368
+energy_crisis_13,CPPTAI_no_I,1.0,0.0,0.992,0.005,51,0.812,3,0.368
+energy_crisis_13,CPPTAI_no_I,1.0,0.0,0.992,0.005,51,0.812,3,0.368
+energy_crisis_13,CPPTAI_no_I,1.0,0.0,0.992,0.005,51,0.812,3,0.368
+energy_crisis_14,CoT,0.0,1.0,0.992,0.0,17,,,0.368
+energy_crisis_14,CoT,0.0,1.0,0.992,0.0,17,,,0.368
+energy_crisis_14,CoT,0.0,1.0,0.992,0.0,17,,,0.368
+energy_crisis_14,ToT,0.1,0.9,1.0,0.0,15,,,0.368
+energy_crisis_14,ToT,0.1,0.9,1.0,0.0,15,,,0.368
+energy_crisis_14,ToT,0.1,0.9,1.0,0.0,15,,,0.368
+energy_crisis_14,GoT,0.0,1.0,1.0,0.0,14,,,0.368
+energy_crisis_14,GoT,0.0,1.0,1.0,0.0,14,,,0.368
+energy_crisis_14,GoT,0.0,1.0,1.0,0.0,14,,,0.368
+energy_crisis_14,ReAct,0.1,0.9,0.985,0.0,16,,,0.368
+energy_crisis_14,ReAct,0.1,0.9,0.985,0.0,16,,,0.368
+energy_crisis_14,ReAct,0.1,0.9,0.985,0.0,16,,,0.368
+energy_crisis_14,CPPTAI,1.0,0.0,0.992,0.006,51,0.812,3,0.368
+energy_crisis_14,CPPTAI,1.0,0.0,0.992,0.005,51,0.812,3,0.368
+energy_crisis_14,CPPTAI,1.0,0.0,0.992,0.005,51,0.812,3,0.368
+energy_crisis_14,CPPTAI_no_IV,1.0,0.0,0.992,0.005,51,0.812,3,0.368
+energy_crisis_14,CPPTAI_no_IV,1.0,0.0,0.992,0.005,51,0.812,3,0.368
+energy_crisis_14,CPPTAI_no_IV,1.0,0.0,0.992,0.005,51,0.812,3,0.368
+energy_crisis_14,CPPTAI_no_I,1.0,0.0,0.992,0.006,51,0.812,3,0.368
+energy_crisis_14,CPPTAI_no_I,1.0,0.0,0.992,0.005,51,0.812,3,0.368
+energy_crisis_14,CPPTAI_no_I,1.0,0.0,0.992,0.006,51,0.812,3,0.368
+energy_crisis_15,CoT,0.0,1.0,0.992,0.0,17,,,0.368
+energy_crisis_15,CoT,0.0,1.0,0.992,0.0,17,,,0.368
+energy_crisis_15,CoT,0.0,1.0,0.992,0.0,17,,,0.368
+energy_crisis_15,ToT,0.1,0.9,1.0,0.0,15,,,0.368
+energy_crisis_15,ToT,0.1,0.9,1.0,0.0,15,,,0.368
+energy_crisis_15,ToT,0.1,0.9,1.0,0.0,15,,,0.368
+energy_crisis_15,GoT,0.0,1.0,1.0,0.0,14,,,0.368
+energy_crisis_15,GoT,0.0,1.0,1.0,0.0,14,,,0.368
+energy_crisis_15,GoT,0.0,1.0,1.0,0.0,14,,,0.368
+energy_crisis_15,ReAct,0.1,0.9,0.985,0.0,16,,,0.368
+energy_crisis_15,ReAct,0.1,0.9,0.985,0.0,16,,,0.368
+energy_crisis_15,ReAct,0.1,0.9,0.985,0.0,16,,,0.368
+energy_crisis_15,CPPTAI,1.0,0.0,0.992,0.006,51,0.812,3,0.368
+energy_crisis_15,CPPTAI,1.0,0.0,0.992,0.005,51,0.812,3,0.368
+energy_crisis_15,CPPTAI,1.0,0.0,0.992,0.005,51,0.812,3,0.368
+energy_crisis_15,CPPTAI_no_IV,1.0,0.0,0.992,0.006,51,0.812,3,0.368
+energy_crisis_15,CPPTAI_no_IV,1.0,0.0,0.992,0.006,51,0.812,3,0.368
+energy_crisis_15,CPPTAI_no_IV,1.0,0.0,0.992,0.006,51,0.812,3,0.368
+energy_crisis_15,CPPTAI_no_I,1.0,0.0,0.992,0.006,51,0.812,3,0.368
+energy_crisis_15,CPPTAI_no_I,1.0,0.0,0.992,0.006,51,0.812,3,0.368
+energy_crisis_15,CPPTAI_no_I,1.0,0.0,0.992,0.006,51,0.812,3,0.368
+energy_crisis_16,CoT,0.0,1.0,0.992,0.0,17,,,0.356
+energy_crisis_16,CoT,0.0,1.0,0.992,0.0,17,,,0.356
+energy_crisis_16,CoT,0.0,1.0,0.992,0.0,17,,,0.356
+energy_crisis_16,ToT,0.1,0.9,1.0,0.0,15,,,0.356
+energy_crisis_16,ToT,0.1,0.9,1.0,0.0,15,,,0.356
+energy_crisis_16,ToT,0.1,0.9,1.0,0.0,15,,,0.356
+energy_crisis_16,GoT,0.0,1.0,1.0,0.0,14,,,0.356
+energy_crisis_16,GoT,0.0,1.0,1.0,0.0,14,,,0.356
+energy_crisis_16,GoT,0.0,1.0,1.0,0.0,14,,,0.356
+energy_crisis_16,ReAct,0.1,0.9,0.985,0.0,16,,,0.356
+energy_crisis_16,ReAct,0.1,0.9,0.985,0.0,16,,,0.356
+energy_crisis_16,ReAct,0.1,0.9,0.985,0.0,16,,,0.356
+energy_crisis_16,CPPTAI,1.0,0.0,0.992,0.006,51,0.812,3,0.356
+energy_crisis_16,CPPTAI,1.0,0.0,0.992,0.006,51,0.812,3,0.356
+energy_crisis_16,CPPTAI,1.0,0.0,0.992,0.006,51,0.812,3,0.356
+energy_crisis_16,CPPTAI_no_IV,1.0,0.0,0.992,0.006,51,0.812,3,0.356
+energy_crisis_16,CPPTAI_no_IV,1.0,0.0,0.992,0.006,51,0.812,3,0.356
+energy_crisis_16,CPPTAI_no_IV,1.0,0.0,0.992,0.006,51,0.812,3,0.356
+energy_crisis_16,CPPTAI_no_I,1.0,0.0,0.992,0.006,51,0.812,3,0.356
+energy_crisis_16,CPPTAI_no_I,1.0,0.0,0.992,0.006,51,0.812,3,0.356
+energy_crisis_16,CPPTAI_no_I,1.0,0.0,0.992,0.006,51,0.812,3,0.356
+energy_crisis_17,CoT,0.0,1.0,0.992,0.0,17,,,0.356
+energy_crisis_17,CoT,0.0,1.0,0.992,0.0,17,,,0.356
+energy_crisis_17,CoT,0.0,1.0,0.992,0.0,17,,,0.356
+energy_crisis_17,ToT,0.1,0.9,1.0,0.0,15,,,0.356
+energy_crisis_17,ToT,0.1,0.9,1.0,0.0,15,,,0.356
+energy_crisis_17,ToT,0.1,0.9,1.0,0.0,15,,,0.356
+energy_crisis_17,GoT,0.0,1.0,1.0,0.0,14,,,0.356
+energy_crisis_17,GoT,0.0,1.0,1.0,0.0,14,,,0.356
+energy_crisis_17,GoT,0.0,1.0,1.0,0.0,14,,,0.356
+energy_crisis_17,ReAct,0.1,0.9,0.985,0.0,16,,,0.356
+energy_crisis_17,ReAct,0.1,0.9,0.985,0.0,16,,,0.356
+energy_crisis_17,ReAct,0.1,0.9,0.985,0.0,16,,,0.356
+energy_crisis_17,CPPTAI,1.0,0.0,0.992,0.006,51,0.812,3,0.356
+energy_crisis_17,CPPTAI,1.0,0.0,0.992,0.006,51,0.812,3,0.356
+energy_crisis_17,CPPTAI,1.0,0.0,0.992,0.006,51,0.812,3,0.356
+energy_crisis_17,CPPTAI_no_IV,1.0,0.0,0.992,0.006,51,0.812,3,0.356
+energy_crisis_17,CPPTAI_no_IV,1.0,0.0,0.992,0.006,51,0.812,3,0.356
+energy_crisis_17,CPPTAI_no_IV,1.0,0.0,0.992,0.007,51,0.812,3,0.356
+energy_crisis_17,CPPTAI_no_I,1.0,0.0,0.992,0.007,51,0.812,3,0.356
+energy_crisis_17,CPPTAI_no_I,1.0,0.0,0.992,0.007,51,0.812,3,0.356
+energy_crisis_17,CPPTAI_no_I,1.0,0.0,0.992,0.006,51,0.812,3,0.356
+energy_crisis_18,CoT,0.0,1.0,0.992,0.0,17,,,0.356
+energy_crisis_18,CoT,0.0,1.0,0.992,0.0,17,,,0.356
+energy_crisis_18,CoT,0.0,1.0,0.992,0.0,17,,,0.356
+energy_crisis_18,ToT,0.1,0.9,1.0,0.0,15,,,0.356
+energy_crisis_18,ToT,0.1,0.9,1.0,0.0,15,,,0.356
+energy_crisis_18,ToT,0.1,0.9,1.0,0.0,15,,,0.356
+energy_crisis_18,GoT,0.0,1.0,1.0,0.0,14,,,0.356
+energy_crisis_18,GoT,0.0,1.0,1.0,0.0,14,,,0.356
+energy_crisis_18,GoT,0.0,1.0,1.0,0.0,14,,,0.356
+energy_crisis_18,ReAct,0.1,0.9,0.985,0.0,16,,,0.356
+energy_crisis_18,ReAct,0.1,0.9,0.985,0.0,16,,,0.356
+energy_crisis_18,ReAct,0.1,0.9,0.985,0.0,16,,,0.356
+energy_crisis_18,CPPTAI,1.0,0.0,0.992,0.007,51,0.812,3,0.356
+energy_crisis_18,CPPTAI,1.0,0.0,0.992,0.007,51,0.812,3,0.356
+energy_crisis_18,CPPTAI,1.0,0.0,0.992,0.007,51,0.812,3,0.356
+energy_crisis_18,CPPTAI_no_IV,1.0,0.0,0.992,0.007,51,0.812,3,0.356
+energy_crisis_18,CPPTAI_no_IV,1.0,0.0,0.992,0.007,51,0.812,3,0.356
+energy_crisis_18,CPPTAI_no_IV,1.0,0.0,0.992,0.007,51,0.812,3,0.356
+energy_crisis_18,CPPTAI_no_I,1.0,0.0,0.992,0.007,51,0.812,3,0.356
+energy_crisis_18,CPPTAI_no_I,1.0,0.0,0.992,0.007,51,0.812,3,0.356
+energy_crisis_18,CPPTAI_no_I,1.0,0.0,0.992,0.007,51,0.812,3,0.356
+energy_crisis_19,CoT,0.0,1.0,0.992,0.0,17,,,0.345
+energy_crisis_19,CoT,0.0,1.0,0.992,0.0,17,,,0.345
+energy_crisis_19,CoT,0.0,1.0,0.992,0.0,17,,,0.345
+energy_crisis_19,ToT,0.1,0.9,1.0,0.0,15,,,0.345
+energy_crisis_19,ToT,0.1,0.9,1.0,0.0,15,,,0.345
+energy_crisis_19,ToT,0.1,0.9,1.0,0.0,15,,,0.345
+energy_crisis_19,GoT,0.0,1.0,1.0,0.0,14,,,0.345
+energy_crisis_19,GoT,0.0,1.0,1.0,0.0,14,,,0.345
+energy_crisis_19,GoT,0.0,1.0,1.0,0.0,14,,,0.345
+energy_crisis_19,ReAct,0.1,0.9,0.985,0.0,16,,,0.345
+energy_crisis_19,ReAct,0.1,0.9,0.985,0.0,16,,,0.345
+energy_crisis_19,ReAct,0.1,0.9,0.985,0.0,16,,,0.345
+energy_crisis_19,CPPTAI,1.0,0.0,0.992,0.007,51,0.812,3,0.345
+energy_crisis_19,CPPTAI,1.0,0.0,0.992,0.007,51,0.812,3,0.345
+energy_crisis_19,CPPTAI,1.0,0.0,0.992,0.007,51,0.812,3,0.345
+energy_crisis_19,CPPTAI_no_IV,1.0,0.0,0.992,0.007,51,0.812,3,0.345
+energy_crisis_19,CPPTAI_no_IV,1.0,0.0,0.992,0.007,51,0.812,3,0.345
+energy_crisis_19,CPPTAI_no_IV,1.0,0.0,0.992,0.007,51,0.812,3,0.345
+energy_crisis_19,CPPTAI_no_I,1.0,0.0,0.992,0.007,51,0.812,3,0.345
+energy_crisis_19,CPPTAI_no_I,1.0,0.0,0.992,0.007,51,0.812,3,0.345
+energy_crisis_19,CPPTAI_no_I,1.0,0.0,0.992,0.007,51,0.812,3,0.345
+energy_crisis_20,CoT,0.0,1.0,0.992,0.0,17,,,0.345
+energy_crisis_20,CoT,0.0,1.0,0.992,0.0,17,,,0.345
+energy_crisis_20,CoT,0.0,1.0,0.992,0.0,17,,,0.345
+energy_crisis_20,ToT,0.1,0.9,1.0,0.0,15,,,0.345
+energy_crisis_20,ToT,0.1,0.9,1.0,0.0,15,,,0.345
+energy_crisis_20,ToT,0.1,0.9,1.0,0.0,15,,,0.345
+energy_crisis_20,GoT,0.0,1.0,1.0,0.0,14,,,0.345
+energy_crisis_20,GoT,0.0,1.0,1.0,0.0,14,,,0.345
+energy_crisis_20,GoT,0.0,1.0,1.0,0.0,14,,,0.345
+energy_crisis_20,ReAct,0.1,0.9,0.985,0.0,16,,,0.345
+energy_crisis_20,ReAct,0.1,0.9,0.985,0.0,16,,,0.345
+energy_crisis_20,ReAct,0.1,0.9,0.985,0.0,16,,,0.345
+energy_crisis_20,CPPTAI,1.0,0.0,0.992,0.008,51,0.812,3,0.345
+energy_crisis_20,CPPTAI,1.0,0.0,0.992,0.008,51,0.812,3,0.345
+energy_crisis_20,CPPTAI,1.0,0.0,0.992,0.008,51,0.812,3,0.345
+energy_crisis_20,CPPTAI_no_IV,1.0,0.0,0.992,0.007,51,0.812,3,0.345
+energy_crisis_20,CPPTAI_no_IV,1.0,0.0,0.992,0.007,51,0.812,3,0.345
+energy_crisis_20,CPPTAI_no_IV,1.0,0.0,0.992,0.008,51,0.812,3,0.345
+energy_crisis_20,CPPTAI_no_I,1.0,0.0,0.992,0.008,51,0.812,3,0.345
+energy_crisis_20,CPPTAI_no_I,1.0,0.0,0.992,0.008,51,0.812,3,0.345
+energy_crisis_20,CPPTAI_no_I,1.0,0.0,0.992,0.008,51,0.812,3,0.345
+energy_crisis_21,CoT,0.0,1.0,0.992,0.0,17,,,0.345
+energy_crisis_21,CoT,0.0,1.0,0.992,0.0,17,,,0.345
+energy_crisis_21,CoT,0.0,1.0,0.992,0.0,17,,,0.345
+energy_crisis_21,ToT,0.1,0.9,1.0,0.0,15,,,0.345
+energy_crisis_21,ToT,0.1,0.9,1.0,0.0,15,,,0.345
+energy_crisis_21,ToT,0.1,0.9,1.0,0.0,15,,,0.345
+energy_crisis_21,GoT,0.0,1.0,1.0,0.0,14,,,0.345
+energy_crisis_21,GoT,0.0,1.0,1.0,0.0,14,,,0.345
+energy_crisis_21,GoT,0.0,1.0,1.0,0.0,14,,,0.345
+energy_crisis_21,ReAct,0.1,0.9,0.985,0.0,16,,,0.345
+energy_crisis_21,ReAct,0.1,0.9,0.985,0.0,16,,,0.345
+energy_crisis_21,ReAct,0.1,0.9,0.985,0.0,16,,,0.345
+energy_crisis_21,CPPTAI,1.0,0.0,0.992,0.008,51,0.812,3,0.345
+energy_crisis_21,CPPTAI,1.0,0.0,0.992,0.008,51,0.812,3,0.345
+energy_crisis_21,CPPTAI,1.0,0.0,0.992,0.008,51,0.812,3,0.345
+energy_crisis_21,CPPTAI_no_IV,1.0,0.0,0.992,0.008,51,0.812,3,0.345
+energy_crisis_21,CPPTAI_no_IV,1.0,0.0,0.992,0.008,51,0.812,3,0.345
+energy_crisis_21,CPPTAI_no_IV,1.0,0.0,0.992,0.008,51,0.812,3,0.345
+energy_crisis_21,CPPTAI_no_I,1.0,0.0,0.992,0.008,51,0.812,3,0.345
+energy_crisis_21,CPPTAI_no_I,1.0,0.0,0.992,0.008,51,0.812,3,0.345
+energy_crisis_21,CPPTAI_no_I,1.0,0.0,0.992,0.008,51,0.812,3,0.345
+energy_crisis_22,CoT,0.0,1.0,0.992,0.0,17,,,0.368
+energy_crisis_22,CoT,0.0,1.0,0.992,0.0,17,,,0.368
+energy_crisis_22,CoT,0.0,1.0,0.992,0.0,17,,,0.368
+energy_crisis_22,ToT,0.1,0.9,1.0,0.0,15,,,0.368
+energy_crisis_22,ToT,0.1,0.9,1.0,0.0,15,,,0.368
+energy_crisis_22,ToT,0.1,0.9,1.0,0.0,15,,,0.368
+energy_crisis_22,GoT,0.0,1.0,1.0,0.0,14,,,0.368
+energy_crisis_22,GoT,0.0,1.0,1.0,0.0,14,,,0.368
+energy_crisis_22,GoT,0.0,1.0,1.0,0.0,14,,,0.368
+energy_crisis_22,ReAct,0.1,0.9,0.985,0.0,16,,,0.368
+energy_crisis_22,ReAct,0.1,0.9,0.985,0.0,16,,,0.368
+energy_crisis_22,ReAct,0.1,0.9,0.985,0.0,16,,,0.368
+energy_crisis_22,CPPTAI,1.0,0.0,0.992,0.008,51,0.812,3,0.368
+energy_crisis_22,CPPTAI,1.0,0.0,0.992,0.008,51,0.812,3,0.368
+energy_crisis_22,CPPTAI,1.0,0.0,0.992,0.008,51,0.812,3,0.368
+energy_crisis_22,CPPTAI_no_IV,1.0,0.0,0.992,0.009,51,0.812,3,0.368
+energy_crisis_22,CPPTAI_no_IV,1.0,0.0,0.992,0.008,51,0.812,3,0.368
+energy_crisis_22,CPPTAI_no_IV,1.0,0.0,0.992,0.008,51,0.812,3,0.368
+energy_crisis_22,CPPTAI_no_I,1.0,0.0,0.992,0.008,51,0.812,3,0.368
+energy_crisis_22,CPPTAI_no_I,1.0,0.0,0.992,0.008,51,0.812,3,0.368
+energy_crisis_22,CPPTAI_no_I,1.0,0.0,0.992,0.008,51,0.812,3,0.368
+energy_crisis_23,CoT,0.0,1.0,0.992,0.0,17,,,0.368
+energy_crisis_23,CoT,0.0,1.0,0.992,0.0,17,,,0.368
+energy_crisis_23,CoT,0.0,1.0,0.992,0.0,17,,,0.368
+energy_crisis_23,ToT,0.1,0.9,1.0,0.0,15,,,0.368
+energy_crisis_23,ToT,0.1,0.9,1.0,0.0,15,,,0.368
+energy_crisis_23,ToT,0.1,0.9,1.0,0.0,15,,,0.368
+energy_crisis_23,GoT,0.0,1.0,1.0,0.0,14,,,0.368
+energy_crisis_23,GoT,0.0,1.0,1.0,0.0,14,,,0.368
+energy_crisis_23,GoT,0.0,1.0,1.0,0.0,14,,,0.368
+energy_crisis_23,ReAct,0.1,0.9,0.985,0.0,16,,,0.368
+energy_crisis_23,ReAct,0.1,0.9,0.985,0.0,16,,,0.368
+energy_crisis_23,ReAct,0.1,0.9,0.985,0.0,16,,,0.368
+energy_crisis_23,CPPTAI,1.0,0.0,0.992,0.008,51,0.812,3,0.368
+energy_crisis_23,CPPTAI,1.0,0.0,0.992,0.009,51,0.812,3,0.368
+energy_crisis_23,CPPTAI,1.0,0.0,0.992,0.008,51,0.812,3,0.368
+energy_crisis_23,CPPTAI_no_IV,1.0,0.0,0.992,0.009,51,0.812,3,0.368
+energy_crisis_23,CPPTAI_no_IV,1.0,0.0,0.992,0.008,51,0.812,3,0.368
+energy_crisis_23,CPPTAI_no_IV,1.0,0.0,0.992,0.008,51,0.812,3,0.368
+energy_crisis_23,CPPTAI_no_I,1.0,0.0,0.992,0.009,51,0.812,3,0.368
+energy_crisis_23,CPPTAI_no_I,1.0,0.0,0.992,0.009,51,0.812,3,0.368
+energy_crisis_23,CPPTAI_no_I,1.0,0.0,0.992,0.009,51,0.812,3,0.368
+energy_crisis_24,CoT,0.0,1.0,0.992,0.0,17,,,0.368
+energy_crisis_24,CoT,0.0,1.0,0.992,0.0,17,,,0.368
+energy_crisis_24,CoT,0.0,1.0,0.992,0.0,17,,,0.368
+energy_crisis_24,ToT,0.1,0.9,1.0,0.0,15,,,0.368
+energy_crisis_24,ToT,0.1,0.9,1.0,0.0,15,,,0.368
+energy_crisis_24,ToT,0.1,0.9,1.0,0.0,15,,,0.368
+energy_crisis_24,GoT,0.0,1.0,1.0,0.0,14,,,0.368
+energy_crisis_24,GoT,0.0,1.0,1.0,0.0,14,,,0.368
+energy_crisis_24,GoT,0.0,1.0,1.0,0.0,14,,,0.368
+energy_crisis_24,ReAct,0.1,0.9,0.985,0.0,16,,,0.368
+energy_crisis_24,ReAct,0.1,0.9,0.985,0.0,16,,,0.368
+energy_crisis_24,ReAct,0.1,0.9,0.985,0.0,16,,,0.368
+energy_crisis_24,CPPTAI,1.0,0.0,0.992,0.009,51,0.812,3,0.368
+energy_crisis_24,CPPTAI,1.0,0.0,0.992,0.009,51,0.812,3,0.368
+energy_crisis_24,CPPTAI,1.0,0.0,0.992,0.009,51,0.812,3,0.368
+energy_crisis_24,CPPTAI_no_IV,1.0,0.0,0.992,0.009,51,0.812,3,0.368
+energy_crisis_24,CPPTAI_no_IV,1.0,0.0,0.992,0.009,51,0.812,3,0.368
+energy_crisis_24,CPPTAI_no_IV,1.0,0.0,0.992,0.009,51,0.812,3,0.368
+energy_crisis_24,CPPTAI_no_I,1.0,0.0,0.992,0.009,51,0.812,3,0.368
+energy_crisis_24,CPPTAI_no_I,1.0,0.0,0.992,0.009,51,0.812,3,0.368
+energy_crisis_24,CPPTAI_no_I,1.0,0.0,0.992,0.009,51,0.812,3,0.368
+```
+
+Parte 2/3:
+
+```csv
+energy_crisis_25,CoT,0.0,1.0,0.992,0.0,17,,,0.356
+energy_crisis_25,CoT,0.0,1.0,0.992,0.0,17,,,0.356
+energy_crisis_25,CoT,0.0,1.0,0.992,0.0,17,,,0.356
+energy_crisis_25,ToT,0.1,0.9,1.0,0.0,15,,,0.356
+energy_crisis_25,ToT,0.1,0.9,1.0,0.0,15,,,0.356
+energy_crisis_25,ToT,0.1,0.9,1.0,0.0,15,,,0.356
+energy_crisis_25,GoT,0.0,1.0,1.0,0.0,14,,,0.356
+energy_crisis_25,GoT,0.0,1.0,1.0,0.0,14,,,0.356
+energy_crisis_25,GoT,0.0,1.0,1.0,0.0,14,,,0.356
+energy_crisis_25,ReAct,0.1,0.9,0.985,0.0,16,,,0.356
+energy_crisis_25,ReAct,0.1,0.9,0.985,0.0,16,,,0.356
+energy_crisis_25,ReAct,0.1,0.9,0.985,0.0,16,,,0.356
+energy_crisis_25,CPPTAI,1.0,0.0,0.992,0.009,51,0.812,3,0.356
+energy_crisis_25,CPPTAI,1.0,0.0,0.992,0.009,51,0.812,3,0.356
+energy_crisis_25,CPPTAI,1.0,0.0,0.992,0.009,51,0.812,3,0.356
+energy_crisis_25,CPPTAI_no_IV,1.0,0.0,0.992,0.01,51,0.812,3,0.356
+energy_crisis_25,CPPTAI_no_IV,1.0,0.0,0.992,0.01,51,0.812,3,0.356
+energy_crisis_25,CPPTAI_no_IV,1.0,0.0,0.992,0.009,51,0.812,3,0.356
+energy_crisis_25,CPPTAI_no_I,1.0,0.0,0.992,0.01,51,0.812,3,0.356
+energy_crisis_25,CPPTAI_no_I,1.0,0.0,0.992,0.01,51,0.812,3,0.356
+energy_crisis_25,CPPTAI_no_I,1.0,0.0,0.992,0.009,51,0.812,3,0.356
+energy_crisis_26,CoT,0.0,1.0,0.992,0.0,17,,,0.356
+energy_crisis_26,CoT,0.0,1.0,0.992,0.0,17,,,0.356
+energy_crisis_26,CoT,0.0,1.0,0.992,0.0,17,,,0.356
+energy_crisis_26,ToT,0.1,0.9,1.0,0.0,15,,,0.356
+energy_crisis_26,ToT,0.1,0.9,1.0,0.0,15,,,0.356
+energy_crisis_26,ToT,0.1,0.9,1.0,0.0,15,,,0.356
+energy_crisis_26,GoT,0.0,1.0,1.0,0.0,14,,,0.356
+energy_crisis_26,GoT,0.0,1.0,1.0,0.0,14,,,0.356
+energy_crisis_26,GoT,0.0,1.0,1.0,0.0,14,,,0.356
+energy_crisis_26,ReAct,0.1,0.9,0.985,0.0,16,,,0.356
+energy_crisis_26,ReAct,0.1,0.9,0.985,0.0,16,,,0.356
+energy_crisis_26,ReAct,0.1,0.9,0.985,0.0,16,,,0.356
+energy_crisis_26,CPPTAI,1.0,0.0,0.992,0.009,51,0.812,3,0.356
+energy_crisis_26,CPPTAI,1.0,0.0,0.992,0.01,51,0.812,3,0.356
+energy_crisis_26,CPPTAI,1.0,0.0,0.992,0.01,51,0.812,3,0.356
+energy_crisis_26,CPPTAI_no_IV,1.0,0.0,0.992,0.01,51,0.812,3,0.356
+energy_crisis_26,CPPTAI_no_IV,1.0,0.0,0.992,0.01,51,0.812,3,0.356
+energy_crisis_26,CPPTAI_no_IV,1.0,0.0,0.992,0.01,51,0.812,3,0.356
+energy_crisis_26,CPPTAI_no_I,1.0,0.0,0.992,0.01,51,0.812,3,0.356
+energy_crisis_26,CPPTAI_no_I,1.0,0.0,0.992,0.01,51,0.812,3,0.356
+energy_crisis_26,CPPTAI_no_I,1.0,0.0,0.992,0.01,51,0.812,3,0.356
+energy_crisis_27,CoT,0.0,1.0,0.992,0.0,17,,,0.356
+energy_crisis_27,CoT,0.0,1.0,0.992,0.0,17,,,0.356
+energy_crisis_27,CoT,0.0,1.0,0.992,0.0,17,,,0.356
+energy_crisis_27,ToT,0.1,0.9,1.0,0.0,15,,,0.356
+energy_crisis_27,ToT,0.1,0.9,1.0,0.0,15,,,0.356
+energy_crisis_27,ToT,0.1,0.9,1.0,0.0,15,,,0.356
+energy_crisis_27,GoT,0.0,1.0,1.0,0.0,14,,,0.356
+energy_crisis_27,GoT,0.0,1.0,1.0,0.0,14,,,0.356
+energy_crisis_27,GoT,0.0,1.0,1.0,0.0,14,,,0.356
+energy_crisis_27,ReAct,0.1,0.9,0.985,0.0,16,,,0.356
+energy_crisis_27,ReAct,0.1,0.9,0.985,0.0,16,,,0.356
+energy_crisis_27,ReAct,0.1,0.9,0.985,0.0,16,,,0.356
+energy_crisis_27,CPPTAI,1.0,0.0,0.992,0.01,51,0.812,3,0.356
+energy_crisis_27,CPPTAI,1.0,0.0,0.992,0.01,51,0.812,3,0.356
+energy_crisis_27,CPPTAI,1.0,0.0,0.992,0.01,51,0.812,3,0.356
+energy_crisis_27,CPPTAI_no_IV,1.0,0.0,0.992,0.01,51,0.812,3,0.356
+energy_crisis_27,CPPTAI_no_IV,1.0,0.0,0.992,0.01,51,0.812,3,0.356
+energy_crisis_27,CPPTAI_no_IV,1.0,0.0,0.992,0.01,51,0.812,3,0.356
+energy_crisis_27,CPPTAI_no_I,1.0,0.0,0.992,0.01,51,0.812,3,0.356
+energy_crisis_27,CPPTAI_no_I,1.0,0.0,0.992,0.01,51,0.812,3,0.356
+energy_crisis_27,CPPTAI_no_I,1.0,0.0,0.992,0.01,51,0.812,3,0.356
+energy_crisis_28,CoT,0.0,1.0,0.992,0.0,17,,,0.345
+energy_crisis_28,CoT,0.0,1.0,0.992,0.0,17,,,0.345
+energy_crisis_28,CoT,0.0,1.0,0.992,0.0,17,,,0.345
+energy_crisis_28,ToT,0.1,0.9,1.0,0.0,15,,,0.345
+energy_crisis_28,ToT,0.1,0.9,1.0,0.0,15,,,0.345
+energy_crisis_28,ToT,0.1,0.9,1.0,0.0,15,,,0.345
+energy_crisis_28,GoT,0.0,1.0,1.0,0.0,14,,,0.345
+energy_crisis_28,GoT,0.0,1.0,1.0,0.0,14,,,0.345
+energy_crisis_28,GoT,0.0,1.0,1.0,0.0,14,,,0.345
+energy_crisis_28,ReAct,0.1,0.9,0.985,0.0,16,,,0.345
+energy_crisis_28,ReAct,0.1,0.9,0.985,0.0,16,,,0.345
+energy_crisis_28,ReAct,0.1,0.9,0.985,0.0,16,,,0.345
+energy_crisis_28,CPPTAI,1.0,0.0,0.992,0.01,51,0.812,3,0.345
+energy_crisis_28,CPPTAI,1.0,0.0,0.992,0.01,51,0.812,3,0.345
+energy_crisis_28,CPPTAI,1.0,0.0,0.992,0.011,51,0.812,3,0.345
+energy_crisis_28,CPPTAI_no_IV,1.0,0.0,0.992,0.021,51,0.812,3,0.345
+energy_crisis_28,CPPTAI_no_IV,1.0,0.0,0.992,0.015,51,0.812,3,0.345
+energy_crisis_28,CPPTAI_no_IV,1.0,0.0,0.992,0.014,51,0.812,3,0.345
+energy_crisis_28,CPPTAI_no_I,1.0,0.0,0.992,0.012,51,0.812,3,0.345
+energy_crisis_28,CPPTAI_no_I,1.0,0.0,0.992,0.012,51,0.812,3,0.345
+energy_crisis_28,CPPTAI_no_I,1.0,0.0,0.992,0.011,51,0.812,3,0.345
+energy_crisis_29,CoT,0.0,1.0,0.992,0.0,17,,,0.345
+energy_crisis_29,CoT,0.0,1.0,0.992,0.0,17,,,0.345
+energy_crisis_29,CoT,0.0,1.0,0.992,0.0,17,,,0.345
+energy_crisis_29,ToT,0.1,0.9,1.0,0.0,15,,,0.345
+energy_crisis_29,ToT,0.1,0.9,1.0,0.0,15,,,0.345
+energy_crisis_29,ToT,0.1,0.9,1.0,0.0,15,,,0.345
+energy_crisis_29,GoT,0.0,1.0,1.0,0.0,14,,,0.345
+energy_crisis_29,GoT,0.0,1.0,1.0,0.0,14,,,0.345
+energy_crisis_29,GoT,0.0,1.0,1.0,0.0,14,,,0.345
+energy_crisis_29,ReAct,0.1,0.9,0.985,0.0,16,,,0.345
+energy_crisis_29,ReAct,0.1,0.9,0.985,0.0,16,,,0.345
+energy_crisis_29,ReAct,0.1,0.9,0.985,0.0,16,,,0.345
+energy_crisis_29,CPPTAI,1.0,0.0,0.992,0.01,51,0.812,3,0.345
+energy_crisis_29,CPPTAI,1.0,0.0,0.992,0.012,51,0.812,3,0.345
+energy_crisis_29,CPPTAI,1.0,0.0,0.992,0.011,51,0.812,3,0.345
+energy_crisis_29,CPPTAI_no_IV,1.0,0.0,0.992,0.011,51,0.812,3,0.345
+energy_crisis_29,CPPTAI_no_IV,1.0,0.0,0.992,0.011,51,0.812,3,0.345
+energy_crisis_29,CPPTAI_no_IV,1.0,0.0,0.992,0.011,51,0.812,3,0.345
+energy_crisis_29,CPPTAI_no_I,1.0,0.0,0.992,0.012,51,0.812,3,0.345
+energy_crisis_29,CPPTAI_no_I,1.0,0.0,0.992,0.011,51,0.812,3,0.345
+energy_crisis_29,CPPTAI_no_I,1.0,0.0,0.992,0.011,51,0.812,3,0.345
+energy_crisis_30,CoT,0.0,1.0,0.992,0.0,17,,,0.345
+energy_crisis_30,CoT,0.0,1.0,0.992,0.0,17,,,0.345
+energy_crisis_30,CoT,0.0,1.0,0.992,0.0,17,,,0.345
+energy_crisis_30,ToT,0.1,0.9,1.0,0.0,15,,,0.345
+energy_crisis_30,ToT,0.1,0.9,1.0,0.0,15,,,0.345
+energy_crisis_30,ToT,0.1,0.9,1.0,0.0,15,,,0.345
+energy_crisis_30,GoT,0.0,1.0,1.0,0.0,14,,,0.345
+energy_crisis_30,GoT,0.0,1.0,1.0,0.0,14,,,0.345
+energy_crisis_30,GoT,0.0,1.0,1.0,0.0,14,,,0.345
+energy_crisis_30,ReAct,0.1,0.9,0.985,0.0,16,,,0.345
+energy_crisis_30,ReAct,0.1,0.9,0.985,0.0,16,,,0.345
+energy_crisis_30,ReAct,0.1,0.9,0.985,0.0,16,,,0.345
+energy_crisis_30,CPPTAI,1.0,0.0,0.992,0.011,51,0.812,3,0.345
+energy_crisis_30,CPPTAI,1.0,0.0,0.992,0.011,51,0.812,3,0.345
+energy_crisis_30,CPPTAI,1.0,0.0,0.992,0.011,51,0.812,3,0.345
+energy_crisis_30,CPPTAI_no_IV,1.0,0.0,0.992,0.011,51,0.812,3,0.345
+energy_crisis_30,CPPTAI_no_IV,1.0,0.0,0.992,0.012,51,0.812,3,0.345
+energy_crisis_30,CPPTAI_no_IV,1.0,0.0,0.992,0.011,51,0.812,3,0.345
+energy_crisis_30,CPPTAI_no_I,1.0,0.0,0.992,0.012,51,0.812,3,0.345
+energy_crisis_30,CPPTAI_no_I,1.0,0.0,0.992,0.012,51,0.812,3,0.345
+energy_crisis_30,CPPTAI_no_I,1.0,0.0,0.992,0.011,51,0.812,3,0.345
+energy_crisis_31,CoT,0.0,1.0,0.992,0.0,17,,,0.368
+energy_crisis_31,CoT,0.0,1.0,0.992,0.0,17,,,0.368
+energy_crisis_31,CoT,0.0,1.0,0.992,0.0,17,,,0.368
+energy_crisis_31,ToT,0.1,0.9,1.0,0.0,15,,,0.368
+energy_crisis_31,ToT,0.1,0.9,1.0,0.0,15,,,0.368
+energy_crisis_31,ToT,0.1,0.9,1.0,0.0,15,,,0.368
+energy_crisis_31,GoT,0.0,1.0,1.0,0.0,14,,,0.368
+energy_crisis_31,GoT,0.0,1.0,1.0,0.0,14,,,0.368
+energy_crisis_31,GoT,0.0,1.0,1.0,0.0,14,,,0.368
+energy_crisis_31,ReAct,0.1,0.9,0.985,0.0,16,,,0.368
+energy_crisis_31,ReAct,0.1,0.9,0.985,0.0,16,,,0.368
+energy_crisis_31,ReAct,0.1,0.9,0.985,0.0,16,,,0.368
+energy_crisis_31,CPPTAI,1.0,0.0,0.992,0.011,51,0.812,3,0.368
+energy_crisis_31,CPPTAI,1.0,0.0,0.992,0.011,51,0.812,3,0.368
+energy_crisis_31,CPPTAI,1.0,0.0,0.992,0.012,51,0.812,3,0.368
+energy_crisis_31,CPPTAI_no_IV,1.0,0.0,0.992,0.012,51,0.812,3,0.368
+energy_crisis_31,CPPTAI_no_IV,1.0,0.0,0.992,0.011,51,0.812,3,0.368
+energy_crisis_31,CPPTAI_no_IV,1.0,0.0,0.992,0.012,51,0.812,3,0.368
+energy_crisis_31,CPPTAI_no_I,1.0,0.0,0.992,0.012,51,0.812,3,0.368
+energy_crisis_31,CPPTAI_no_I,1.0,0.0,0.992,0.011,51,0.812,3,0.368
+energy_crisis_31,CPPTAI_no_I,1.0,0.0,0.992,0.012,51,0.812,3,0.368
+energy_crisis_32,CoT,0.0,1.0,0.992,0.0,17,,,0.368
+energy_crisis_32,CoT,0.0,1.0,0.992,0.0,17,,,0.368
+energy_crisis_32,CoT,0.0,1.0,0.992,0.0,17,,,0.368
+energy_crisis_32,ToT,0.1,0.9,1.0,0.0,15,,,0.368
+energy_crisis_32,ToT,0.1,0.9,1.0,0.0,15,,,0.368
+energy_crisis_32,ToT,0.1,0.9,1.0,0.0,15,,,0.368
+energy_crisis_32,GoT,0.0,1.0,1.0,0.0,14,,,0.368
+energy_crisis_32,GoT,0.0,1.0,1.0,0.0,14,,,0.368
+energy_crisis_32,GoT,0.0,1.0,1.0,0.0,14,,,0.368
+energy_crisis_32,ReAct,0.1,0.9,0.985,0.0,16,,,0.368
+energy_crisis_32,ReAct,0.1,0.9,0.985,0.0,16,,,0.368
+energy_crisis_32,ReAct,0.1,0.9,0.985,0.0,16,,,0.368
+energy_crisis_32,CPPTAI,1.0,0.0,0.992,0.012,51,0.812,3,0.368
+energy_crisis_32,CPPTAI,1.0,0.0,0.992,0.012,51,0.812,3,0.368
+energy_crisis_32,CPPTAI,1.0,0.0,0.992,0.012,51,0.812,3,0.368
+energy_crisis_32,CPPTAI_no_IV,1.0,0.0,0.992,0.012,51,0.812,3,0.368
+energy_crisis_32,CPPTAI_no_IV,1.0,0.0,0.992,0.012,51,0.812,3,0.368
+energy_crisis_32,CPPTAI_no_IV,1.0,0.0,0.992,0.012,51,0.812,3,0.368
+energy_crisis_32,CPPTAI_no_I,1.0,0.0,0.992,0.012,51,0.812,3,0.368
+energy_crisis_32,CPPTAI_no_I,1.0,0.0,0.992,0.012,51,0.812,3,0.368
+energy_crisis_32,CPPTAI_no_I,1.0,0.0,0.992,0.012,51,0.812,3,0.368
+energy_crisis_33,CoT,0.0,1.0,0.992,0.0,17,,,0.368
+energy_crisis_33,CoT,0.0,1.0,0.992,0.0,17,,,0.368
+energy_crisis_33,CoT,0.0,1.0,0.992,0.0,17,,,0.368
+energy_crisis_33,ToT,0.1,0.9,1.0,0.0,15,,,0.368
+energy_crisis_33,ToT,0.1,0.9,1.0,0.0,15,,,0.368
+energy_crisis_33,ToT,0.1,0.9,1.0,0.0,15,,,0.368
+energy_crisis_33,GoT,0.0,1.0,1.0,0.0,14,,,0.368
+energy_crisis_33,GoT,0.0,1.0,1.0,0.0,14,,,0.368
+energy_crisis_33,GoT,0.0,1.0,1.0,0.0,14,,,0.368
+energy_crisis_33,ReAct,0.1,0.9,0.985,0.0,16,,,0.368
+energy_crisis_33,ReAct,0.1,0.9,0.985,0.0,16,,,0.368
+energy_crisis_33,ReAct,0.1,0.9,0.985,0.0,16,,,0.368
+energy_crisis_33,CPPTAI,1.0,0.0,0.992,0.012,51,0.812,3,0.368
+energy_crisis_33,CPPTAI,1.0,0.0,0.992,0.012,51,0.812,3,0.368
+energy_crisis_33,CPPTAI,1.0,0.0,0.992,0.012,51,0.812,3,0.368
+energy_crisis_33,CPPTAI_no_IV,1.0,0.0,0.992,0.012,51,0.812,3,0.368
+energy_crisis_33,CPPTAI_no_IV,1.0,0.0,0.992,0.013,51,0.812,3,0.368
+energy_crisis_33,CPPTAI_no_IV,1.0,0.0,0.992,0.012,51,0.812,3,0.368
+energy_crisis_33,CPPTAI_no_I,1.0,0.0,0.992,0.012,51,0.812,3,0.368
+energy_crisis_33,CPPTAI_no_I,1.0,0.0,0.992,0.012,51,0.812,3,0.368
+energy_crisis_33,CPPTAI_no_I,1.0,0.0,0.992,0.012,51,0.812,3,0.368
+energy_crisis_34,CoT,0.0,1.0,0.992,0.0,17,,,0.356
+energy_crisis_34,CoT,0.0,1.0,0.992,0.0,17,,,0.356
+energy_crisis_34,CoT,0.0,1.0,0.992,0.0,17,,,0.356
+energy_crisis_34,ToT,0.1,0.9,1.0,0.0,15,,,0.356
+energy_crisis_34,ToT,0.1,0.9,1.0,0.0,15,,,0.356
+energy_crisis_34,ToT,0.1,0.9,1.0,0.0,15,,,0.356
+energy_crisis_34,GoT,0.0,1.0,1.0,0.0,14,,,0.356
+energy_crisis_34,GoT,0.0,1.0,1.0,0.0,14,,,0.356
+energy_crisis_34,GoT,0.0,1.0,1.0,0.0,14,,,0.356
+energy_crisis_34,ReAct,0.1,0.9,0.985,0.0,16,,,0.356
+energy_crisis_34,ReAct,0.1,0.9,0.985,0.0,16,,,0.356
+energy_crisis_34,ReAct,0.1,0.9,0.985,0.0,16,,,0.356
+energy_crisis_34,CPPTAI,1.0,0.0,0.992,0.013,51,0.812,3,0.356
+energy_crisis_34,CPPTAI,1.0,0.0,0.992,0.012,51,0.812,3,0.356
+energy_crisis_34,CPPTAI,1.0,0.0,0.992,0.013,51,0.812,3,0.356
+energy_crisis_34,CPPTAI_no_IV,1.0,0.0,0.992,0.013,51,0.812,3,0.356
+energy_crisis_34,CPPTAI_no_IV,1.0,0.0,0.992,0.013,51,0.812,3,0.356
+energy_crisis_34,CPPTAI_no_IV,1.0,0.0,0.992,0.014,51,0.812,3,0.356
+energy_crisis_34,CPPTAI_no_I,1.0,0.0,0.992,0.013,51,0.812,3,0.356
+energy_crisis_34,CPPTAI_no_I,1.0,0.0,0.992,0.014,51,0.812,3,0.356
+energy_crisis_34,CPPTAI_no_I,1.0,0.0,0.992,0.013,51,0.812,3,0.356
+energy_crisis_35,CoT,0.0,1.0,0.992,0.0,17,,,0.356
+energy_crisis_35,CoT,0.0,1.0,0.992,0.0,17,,,0.356
+energy_crisis_35,CoT,0.0,1.0,0.992,0.0,17,,,0.356
+energy_crisis_35,ToT,0.1,0.9,1.0,0.0,15,,,0.356
+energy_crisis_35,ToT,0.1,0.9,1.0,0.0,15,,,0.356
+energy_crisis_35,ToT,0.1,0.9,1.0,0.0,15,,,0.356
+energy_crisis_35,GoT,0.0,1.0,1.0,0.0,14,,,0.356
+energy_crisis_35,GoT,0.0,1.0,1.0,0.0,14,,,0.356
+energy_crisis_35,GoT,0.0,1.0,1.0,0.0,14,,,0.356
+energy_crisis_35,ReAct,0.1,0.9,0.985,0.0,16,,,0.356
+energy_crisis_35,ReAct,0.1,0.9,0.985,0.0,16,,,0.356
+energy_crisis_35,ReAct,0.1,0.9,0.985,0.0,16,,,0.356
+energy_crisis_35,CPPTAI,1.0,0.0,0.992,0.013,51,0.812,3,0.356
+energy_crisis_35,CPPTAI,1.0,0.0,0.992,0.013,51,0.812,3,0.356
+energy_crisis_35,CPPTAI,1.0,0.0,0.992,0.013,51,0.812,3,0.356
+energy_crisis_35,CPPTAI_no_IV,1.0,0.0,0.992,0.014,51,0.812,3,0.356
+energy_crisis_35,CPPTAI_no_IV,1.0,0.0,0.992,0.013,51,0.812,3,0.356
+energy_crisis_35,CPPTAI_no_IV,1.0,0.0,0.992,0.013,51,0.812,3,0.356
+energy_crisis_35,CPPTAI_no_I,1.0,0.0,0.992,0.013,51,0.812,3,0.356
+energy_crisis_35,CPPTAI_no_I,1.0,0.0,0.992,0.013,51,0.812,3,0.356
+energy_crisis_35,CPPTAI_no_I,1.0,0.0,0.992,0.013,51,0.812,3,0.356
+energy_crisis_36,CoT,0.0,1.0,0.992,0.0,17,,,0.356
+energy_crisis_36,CoT,0.0,1.0,0.992,0.0,17,,,0.356
+energy_crisis_36,CoT,0.0,1.0,0.992,0.0,17,,,0.356
+energy_crisis_36,ToT,0.1,0.9,1.0,0.0,15,,,0.356
+energy_crisis_36,ToT,0.1,0.9,1.0,0.0,15,,,0.356
+energy_crisis_36,ToT,0.1,0.9,1.0,0.0,15,,,0.356
+energy_crisis_36,GoT,0.0,1.0,1.0,0.0,14,,,0.356
+energy_crisis_36,GoT,0.0,1.0,1.0,0.0,14,,,0.356
+energy_crisis_36,GoT,0.0,1.0,1.0,0.0,14,,,0.356
+energy_crisis_36,ReAct,0.1,0.9,0.985,0.0,16,,,0.356
+energy_crisis_36,ReAct,0.1,0.9,0.985,0.0,16,,,0.356
+energy_crisis_36,ReAct,0.1,0.9,0.985,0.0,16,,,0.356
+energy_crisis_36,CPPTAI,1.0,0.0,0.992,0.013,51,0.812,3,0.356
+energy_crisis_36,CPPTAI,1.0,0.0,0.992,0.014,51,0.812,3,0.356
+energy_crisis_36,CPPTAI,1.0,0.0,0.992,0.014,51,0.812,3,0.356
+energy_crisis_36,CPPTAI_no_IV,1.0,0.0,0.992,0.013,51,0.812,3,0.356
+energy_crisis_36,CPPTAI_no_IV,1.0,0.0,0.992,0.014,51,0.812,3,0.356
+energy_crisis_36,CPPTAI_no_IV,1.0,0.0,0.992,0.014,51,0.812,3,0.356
+energy_crisis_36,CPPTAI_no_I,1.0,0.0,0.992,0.013,51,0.812,3,0.356
+energy_crisis_36,CPPTAI_no_I,1.0,0.0,0.992,0.015,51,0.812,3,0.356
+energy_crisis_36,CPPTAI_no_I,1.0,0.0,0.992,0.014,51,0.812,3,0.356
+energy_crisis_37,CoT,0.0,1.0,0.992,0.0,17,,,0.345
+energy_crisis_37,CoT,0.0,1.0,0.992,0.0,17,,,0.345
+energy_crisis_37,CoT,0.0,1.0,0.992,0.0,17,,,0.345
+energy_crisis_37,ToT,0.1,0.9,1.0,0.0,15,,,0.345
+energy_crisis_37,ToT,0.1,0.9,1.0,0.0,15,,,0.345
+energy_crisis_37,ToT,0.1,0.9,1.0,0.0,15,,,0.345
+energy_crisis_37,GoT,0.0,1.0,1.0,0.0,14,,,0.345
+energy_crisis_37,GoT,0.0,1.0,1.0,0.0,14,,,0.345
+energy_crisis_37,GoT,0.0,1.0,1.0,0.0,14,,,0.345
+energy_crisis_37,ReAct,0.1,0.9,0.985,0.0,16,,,0.345
+energy_crisis_37,ReAct,0.1,0.9,0.985,0.0,16,,,0.345
+energy_crisis_37,ReAct,0.1,0.9,0.985,0.0,16,,,0.345
+energy_crisis_37,CPPTAI,1.0,0.0,0.992,0.014,51,0.812,3,0.345
+energy_crisis_37,CPPTAI,1.0,0.0,0.992,0.014,51,0.812,3,0.345
+energy_crisis_37,CPPTAI,1.0,0.0,0.992,0.015,51,0.812,3,0.345
+energy_crisis_37,CPPTAI_no_IV,1.0,0.0,0.992,0.014,51,0.812,3,0.345
+energy_crisis_37,CPPTAI_no_IV,1.0,0.0,0.992,0.013,51,0.812,3,0.345
+energy_crisis_37,CPPTAI_no_IV,1.0,0.0,0.992,0.013,51,0.812,3,0.345
+energy_crisis_37,CPPTAI_no_I,1.0,0.0,0.992,0.014,51,0.812,3,0.345
+energy_crisis_37,CPPTAI_no_I,1.0,0.0,0.992,0.014,51,0.812,3,0.345
+energy_crisis_37,CPPTAI_no_I,1.0,0.0,0.992,0.014,51,0.812,3,0.345
+energy_crisis_38,CoT,0.0,1.0,0.992,0.0,17,,,0.345
+energy_crisis_38,CoT,0.0,1.0,0.992,0.0,17,,,0.345
+energy_crisis_38,CoT,0.0,1.0,0.992,0.0,17,,,0.345
+energy_crisis_38,ToT,0.1,0.9,1.0,0.0,15,,,0.345
+energy_crisis_38,ToT,0.1,0.9,1.0,0.0,15,,,0.345
+energy_crisis_38,ToT,0.1,0.9,1.0,0.0,15,,,0.345
+energy_crisis_38,GoT,0.0,1.0,1.0,0.0,14,,,0.345
+energy_crisis_38,GoT,0.0,1.0,1.0,0.0,14,,,0.345
+energy_crisis_38,GoT,0.0,1.0,1.0,0.0,14,,,0.345
+energy_crisis_38,ReAct,0.1,0.9,0.985,0.0,16,,,0.345
+energy_crisis_38,ReAct,0.1,0.9,0.985,0.0,16,,,0.345
+energy_crisis_38,ReAct,0.1,0.9,0.985,0.0,16,,,0.345
+energy_crisis_38,CPPTAI,1.0,0.0,0.992,0.014,51,0.812,3,0.345
+energy_crisis_38,CPPTAI,1.0,0.0,0.992,0.014,51,0.812,3,0.345
+energy_crisis_38,CPPTAI,1.0,0.0,0.992,0.014,51,0.812,3,0.345
+energy_crisis_38,CPPTAI_no_IV,1.0,0.0,0.992,0.014,51,0.812,3,0.345
+energy_crisis_38,CPPTAI_no_IV,1.0,0.0,0.992,0.014,51,0.812,3,0.345
+energy_crisis_38,CPPTAI_no_IV,1.0,0.0,0.992,0.015,51,0.812,3,0.345
+energy_crisis_38,CPPTAI_no_I,1.0,0.0,0.992,0.015,51,0.812,3,0.345
+energy_crisis_38,CPPTAI_no_I,1.0,0.0,0.992,0.015,51,0.812,3,0.345
+energy_crisis_38,CPPTAI_no_I,1.0,0.0,0.992,0.015,51,0.812,3,0.345
+energy_crisis_39,CoT,0.0,1.0,0.992,0.0,17,,,0.345
+energy_crisis_39,CoT,0.0,1.0,0.992,0.0,17,,,0.345
+energy_crisis_39,CoT,0.0,1.0,0.992,0.0,17,,,0.345
+energy_crisis_39,ToT,0.1,0.9,1.0,0.0,15,,,0.345
+energy_crisis_39,ToT,0.1,0.9,1.0,0.0,15,,,0.345
+energy_crisis_39,ToT,0.1,0.9,1.0,0.0,15,,,0.345
+energy_crisis_39,GoT,0.0,1.0,1.0,0.0,14,,,0.345
+energy_crisis_39,GoT,0.0,1.0,1.0,0.0,14,,,0.345
+energy_crisis_39,GoT,0.0,1.0,1.0,0.0,14,,,0.345
+energy_crisis_39,ReAct,0.1,0.9,0.985,0.0,16,,,0.345
+energy_crisis_39,ReAct,0.1,0.9,0.985,0.0,16,,,0.345
+energy_crisis_39,ReAct,0.1,0.9,0.985,0.0,16,,,0.345
+energy_crisis_39,CPPTAI,1.0,0.0,0.992,0.014,51,0.812,3,0.345
+energy_crisis_39,CPPTAI,1.0,0.0,0.992,0.015,51,0.812,3,0.345
+energy_crisis_39,CPPTAI,1.0,0.0,0.992,0.014,51,0.812,3,0.345
+energy_crisis_39,CPPTAI_no_IV,1.0,0.0,0.992,0.014,51,0.812,3,0.345
+energy_crisis_39,CPPTAI_no_IV,1.0,0.0,0.992,0.014,51,0.812,3,0.345
+energy_crisis_39,CPPTAI_no_IV,1.0,0.0,0.992,0.014,51,0.812,3,0.345
+energy_crisis_39,CPPTAI_no_I,1.0,0.0,0.992,0.014,51,0.812,3,0.345
+energy_crisis_39,CPPTAI_no_I,1.0,0.0,0.992,0.014,51,0.812,3,0.345
+energy_crisis_39,CPPTAI_no_I,1.0,0.0,0.992,0.015,51,0.812,3,0.345
+energy_crisis_40,CoT,0.0,1.0,0.992,0.0,17,,,0.368
+energy_crisis_40,CoT,0.0,1.0,0.992,0.0,17,,,0.368
+energy_crisis_40,CoT,0.0,1.0,0.992,0.0,17,,,0.368
+energy_crisis_40,ToT,0.1,0.9,1.0,0.0,15,,,0.368
+energy_crisis_40,ToT,0.1,0.9,1.0,0.0,15,,,0.368
+energy_crisis_40,ToT,0.1,0.9,1.0,0.0,15,,,0.368
+energy_crisis_40,GoT,0.0,1.0,1.0,0.0,14,,,0.368
+energy_crisis_40,GoT,0.0,1.0,1.0,0.0,14,,,0.368
+energy_crisis_40,GoT,0.0,1.0,1.0,0.0,14,,,0.368
+energy_crisis_40,ReAct,0.1,0.9,0.985,0.0,16,,,0.368
+energy_crisis_40,ReAct,0.1,0.9,0.985,0.0,16,,,0.368
+energy_crisis_40,ReAct,0.1,0.9,0.985,0.0,16,,,0.368
+energy_crisis_40,CPPTAI,1.0,0.0,0.992,0.015,51,0.812,3,0.368
+energy_crisis_40,CPPTAI,1.0,0.0,0.992,0.015,51,0.812,3,0.368
+energy_crisis_40,CPPTAI,1.0,0.0,0.992,0.015,51,0.812,3,0.368
+energy_crisis_40,CPPTAI_no_IV,1.0,0.0,0.992,0.014,51,0.812,3,0.368
+energy_crisis_40,CPPTAI_no_IV,1.0,0.0,0.992,0.016,51,0.812,3,0.368
+energy_crisis_40,CPPTAI_no_IV,1.0,0.0,0.992,0.014,51,0.812,3,0.368
+energy_crisis_40,CPPTAI_no_I,1.0,0.0,0.992,0.015,51,0.812,3,0.368
+energy_crisis_40,CPPTAI_no_I,1.0,0.0,0.992,0.015,51,0.812,3,0.368
+energy_crisis_40,CPPTAI_no_I,1.0,0.0,0.992,0.015,51,0.812,3,0.368
+energy_crisis_41,CoT,0.0,1.0,0.992,0.0,17,,,0.368
+energy_crisis_41,CoT,0.0,1.0,0.992,0.0,17,,,0.368
+energy_crisis_41,CoT,0.0,1.0,0.992,0.0,17,,,0.368
+energy_crisis_41,ToT,0.1,0.9,1.0,0.0,15,,,0.368
+energy_crisis_41,ToT,0.1,0.9,1.0,0.0,15,,,0.368
+energy_crisis_41,ToT,0.1,0.9,1.0,0.0,15,,,0.368
+energy_crisis_41,GoT,0.0,1.0,1.0,0.0,14,,,0.368
+energy_crisis_41,GoT,0.0,1.0,1.0,0.0,14,,,0.368
+energy_crisis_41,GoT,0.0,1.0,1.0,0.0,14,,,0.368
+energy_crisis_41,ReAct,0.1,0.9,0.985,0.0,16,,,0.368
+energy_crisis_41,ReAct,0.1,0.9,0.985,0.0,16,,,0.368
+energy_crisis_41,ReAct,0.1,0.9,0.985,0.0,16,,,0.368
+energy_crisis_41,CPPTAI,1.0,0.0,0.992,0.015,51,0.812,3,0.368
+energy_crisis_41,CPPTAI,1.0,0.0,0.992,0.016,51,0.812,3,0.368
+energy_crisis_41,CPPTAI,1.0,0.0,0.992,0.015,51,0.812,3,0.368
+energy_crisis_41,CPPTAI_no_IV,1.0,0.0,0.992,0.015,51,0.812,3,0.368
+energy_crisis_41,CPPTAI_no_IV,1.0,0.0,0.992,0.015,51,0.812,3,0.368
+energy_crisis_41,CPPTAI_no_IV,1.0,0.0,0.992,0.015,51,0.812,3,0.368
+energy_crisis_41,CPPTAI_no_I,1.0,0.0,0.992,0.015,51,0.812,3,0.368
+energy_crisis_41,CPPTAI_no_I,1.0,0.0,0.992,0.016,51,0.812,3,0.368
+energy_crisis_41,CPPTAI_no_I,1.0,0.0,0.992,0.016,51,0.812,3,0.368
+energy_crisis_42,CoT,0.0,1.0,0.992,0.0,17,,,0.368
+energy_crisis_42,CoT,0.0,1.0,0.992,0.0,17,,,0.368
+energy_crisis_42,CoT,0.0,1.0,0.992,0.0,17,,,0.368
+energy_crisis_42,ToT,0.1,0.9,1.0,0.0,15,,,0.368
+energy_crisis_42,ToT,0.1,0.9,1.0,0.0,15,,,0.368
+energy_crisis_42,ToT,0.1,0.9,1.0,0.0,15,,,0.368
+energy_crisis_42,GoT,0.0,1.0,1.0,0.0,14,,,0.368
+energy_crisis_42,GoT,0.0,1.0,1.0,0.0,14,,,0.368
+energy_crisis_42,GoT,0.0,1.0,1.0,0.0,14,,,0.368
+energy_crisis_42,ReAct,0.1,0.9,0.985,0.0,16,,,0.368
+energy_crisis_42,ReAct,0.1,0.9,0.985,0.0,16,,,0.368
+energy_crisis_42,ReAct,0.1,0.9,0.985,0.0,16,,,0.368
+energy_crisis_42,CPPTAI,1.0,0.0,0.992,0.016,51,0.812,3,0.368
+energy_crisis_42,CPPTAI,1.0,0.0,0.992,0.016,51,0.812,3,0.368
+energy_crisis_42,CPPTAI,1.0,0.0,0.992,0.016,51,0.812,3,0.368
+energy_crisis_42,CPPTAI_no_IV,1.0,0.0,0.992,0.016,51,0.812,3,0.368
+energy_crisis_42,CPPTAI_no_IV,1.0,0.0,0.992,0.016,51,0.812,3,0.368
+energy_crisis_42,CPPTAI_no_IV,1.0,0.0,0.992,0.016,51,0.812,3,0.368
+energy_crisis_42,CPPTAI_no_I,1.0,0.0,0.992,0.016,51,0.812,3,0.368
+energy_crisis_42,CPPTAI_no_I,1.0,0.0,0.992,0.016,51,0.812,3,0.368
+energy_crisis_42,CPPTAI_no_I,1.0,0.0,0.992,0.015,51,0.812,3,0.368
+energy_crisis_43,CoT,0.0,1.0,0.992,0.0,17,,,0.356
+energy_crisis_43,CoT,0.0,1.0,0.992,0.0,17,,,0.356
+energy_crisis_43,CoT,0.0,1.0,0.992,0.0,17,,,0.356
+energy_crisis_43,ToT,0.1,0.9,1.0,0.0,15,,,0.356
+energy_crisis_43,ToT,0.1,0.9,1.0,0.0,15,,,0.356
+energy_crisis_43,ToT,0.1,0.9,1.0,0.0,15,,,0.356
+energy_crisis_43,GoT,0.0,1.0,1.0,0.0,14,,,0.356
+energy_crisis_43,GoT,0.0,1.0,1.0,0.0,14,,,0.356
+energy_crisis_43,GoT,0.0,1.0,1.0,0.0,14,,,0.356
+energy_crisis_43,ReAct,0.1,0.9,0.985,0.0,16,,,0.356
+energy_crisis_43,ReAct,0.1,0.9,0.985,0.0,16,,,0.356
+energy_crisis_43,ReAct,0.1,0.9,0.985,0.0,16,,,0.356
+energy_crisis_43,CPPTAI,1.0,0.0,0.992,0.016,51,0.812,3,0.356
+energy_crisis_43,CPPTAI,1.0,0.0,0.992,0.016,51,0.812,3,0.356
+energy_crisis_43,CPPTAI,1.0,0.0,0.992,0.016,51,0.812,3,0.356
+energy_crisis_43,CPPTAI_no_IV,1.0,0.0,0.992,0.016,51,0.812,3,0.356
+energy_crisis_43,CPPTAI_no_IV,1.0,0.0,0.992,0.017,51,0.812,3,0.356
+energy_crisis_43,CPPTAI_no_IV,1.0,0.0,0.992,0.016,51,0.812,3,0.356
+energy_crisis_43,CPPTAI_no_I,1.0,0.0,0.992,0.017,51,0.812,3,0.356
+energy_crisis_43,CPPTAI_no_I,1.0,0.0,0.992,0.016,51,0.812,3,0.356
+energy_crisis_43,CPPTAI_no_I,1.0,0.0,0.992,0.016,51,0.812,3,0.356
+energy_crisis_44,CoT,0.0,1.0,0.992,0.0,17,,,0.356
+energy_crisis_44,CoT,0.0,1.0,0.992,0.0,17,,,0.356
+energy_crisis_44,CoT,0.0,1.0,0.992,0.0,17,,,0.356
+energy_crisis_44,ToT,0.1,0.9,1.0,0.0,15,,,0.356
+energy_crisis_44,ToT,0.1,0.9,1.0,0.0,15,,,0.356
+energy_crisis_44,ToT,0.1,0.9,1.0,0.0,15,,,0.356
+energy_crisis_44,GoT,0.0,1.0,1.0,0.0,14,,,0.356
+energy_crisis_44,GoT,0.0,1.0,1.0,0.0,14,,,0.356
+energy_crisis_44,GoT,0.0,1.0,1.0,0.0,14,,,0.356
+energy_crisis_44,ReAct,0.1,0.9,0.985,0.0,16,,,0.356
+energy_crisis_44,ReAct,0.1,0.9,0.985,0.0,16,,,0.356
+energy_crisis_44,ReAct,0.1,0.9,0.985,0.0,16,,,0.356
+energy_crisis_44,CPPTAI,1.0,0.0,0.992,0.017,51,0.812,3,0.356
+energy_crisis_44,CPPTAI,1.0,0.0,0.992,0.016,51,0.812,3,0.356
+energy_crisis_44,CPPTAI,1.0,0.0,0.992,0.017,51,0.812,3,0.356
+energy_crisis_44,CPPTAI_no_IV,1.0,0.0,0.992,0.016,51,0.812,3,0.356
+energy_crisis_44,CPPTAI_no_IV,1.0,0.0,0.992,0.017,51,0.812,3,0.356
+energy_crisis_44,CPPTAI_no_IV,1.0,0.0,0.992,0.016,51,0.812,3,0.356
+energy_crisis_44,CPPTAI_no_I,1.0,0.0,0.992,0.017,51,0.812,3,0.356
+energy_crisis_44,CPPTAI_no_I,1.0,0.0,0.992,0.017,51,0.812,3,0.356
+energy_crisis_44,CPPTAI_no_I,1.0,0.0,0.992,0.017,51,0.812,3,0.356
+energy_crisis_45,CoT,0.0,1.0,0.992,0.0,17,,,0.356
+energy_crisis_45,CoT,0.0,1.0,0.992,0.0,17,,,0.356
+energy_crisis_45,CoT,0.0,1.0,0.992,0.0,17,,,0.356
+energy_crisis_45,ToT,0.1,0.9,1.0,0.0,15,,,0.356
+energy_crisis_45,ToT,0.1,0.9,1.0,0.0,15,,,0.356
+energy_crisis_45,ToT,0.1,0.9,1.0,0.0,15,,,0.356
+energy_crisis_45,GoT,0.0,1.0,1.0,0.0,14,,,0.356
+energy_crisis_45,GoT,0.0,1.0,1.0,0.0,14,,,0.356
+energy_crisis_45,GoT,0.0,1.0,1.0,0.0,14,,,0.356
+energy_crisis_45,ReAct,0.1,0.9,0.985,0.0,16,,,0.356
+energy_crisis_45,ReAct,0.1,0.9,0.985,0.0,16,,,0.356
+energy_crisis_45,ReAct,0.1,0.9,0.985,0.0,16,,,0.356
+energy_crisis_45,CPPTAI,1.0,0.0,0.992,0.016,51,0.812,3,0.356
+energy_crisis_45,CPPTAI,1.0,0.0,0.992,0.017,51,0.812,3,0.356
+energy_crisis_45,CPPTAI,1.0,0.0,0.992,0.017,51,0.812,3,0.356
+energy_crisis_45,CPPTAI_no_IV,1.0,0.0,0.992,0.016,51,0.812,3,0.356
+energy_crisis_45,CPPTAI_no_IV,1.0,0.0,0.992,0.017,51,0.812,3,0.356
+energy_crisis_45,CPPTAI_no_IV,1.0,0.0,0.992,0.017,51,0.812,3,0.356
+energy_crisis_45,CPPTAI_no_I,1.0,0.0,0.992,0.018,51,0.812,3,0.356
+energy_crisis_45,CPPTAI_no_I,1.0,0.0,0.992,0.018,51,0.812,3,0.356
+energy_crisis_45,CPPTAI_no_I,1.0,0.0,0.992,0.017,51,0.812,3,0.356
+energy_crisis_46,CoT,0.0,1.0,0.992,0.0,17,,,0.356
+energy_crisis_46,CoT,0.0,1.0,0.992,0.0,17,,,0.356
+energy_crisis_46,CoT,0.0,1.0,0.992,0.0,17,,,0.356
+energy_crisis_46,ToT,0.1,0.9,1.0,0.0,15,,,0.356
+energy_crisis_46,ToT,0.1,0.9,1.0,0.0,15,,,0.356
+energy_crisis_46,ToT,0.1,0.9,1.0,0.0,15,,,0.356
+energy_crisis_46,GoT,0.0,1.0,1.0,0.0,14,,,0.356
+energy_crisis_46,GoT,0.0,1.0,1.0,0.0,14,,,0.356
+energy_crisis_46,GoT,0.0,1.0,1.0,0.0,14,,,0.356
+energy_crisis_46,ReAct,0.1,0.9,0.985,0.0,16,,,0.356
+energy_crisis_46,ReAct,0.1,0.9,0.985,0.0,16,,,0.356
+energy_crisis_46,ReAct,0.1,0.9,0.985,0.0,16,,,0.356
+energy_crisis_46,CPPTAI,1.0,0.0,0.992,0.018,51,0.812,3,0.356
+energy_crisis_46,CPPTAI,1.0,0.0,0.992,0.018,51,0.812,3,0.356
+energy_crisis_46,CPPTAI,1.0,0.0,0.992,0.017,51,0.812,3,0.356
+energy_crisis_46,CPPTAI_no_IV,1.0,0.0,0.992,0.017,51,0.812,3,0.356
+energy_crisis_46,CPPTAI_no_IV,1.0,0.0,0.992,0.017,51,0.812,3,0.356
+energy_crisis_46,CPPTAI_no_IV,1.0,0.0,0.992,0.017,51,0.812,3,0.356
+energy_crisis_46,CPPTAI_no_I,1.0,0.0,0.992,0.018,51,0.812,3,0.356
+energy_crisis_46,CPPTAI_no_I,1.0,0.0,0.992,0.018,51,0.812,3,0.356
+energy_crisis_46,CPPTAI_no_I,1.0,0.0,0.992,0.017,51,0.812,3,0.356
+energy_crisis_47,CoT,0.0,1.0,0.992,0.0,17,,,0.356
+energy_crisis_47,CoT,0.0,1.0,0.992,0.0,17,,,0.356
+energy_crisis_47,CoT,0.0,1.0,0.992,0.0,17,,,0.356
+energy_crisis_47,ToT,0.1,0.9,1.0,0.0,15,,,0.356
+energy_crisis_47,ToT,0.1,0.9,1.0,0.0,15,,,0.356
+energy_crisis_47,ToT,0.1,0.9,1.0,0.0,15,,,0.356
+energy_crisis_47,GoT,0.0,1.0,1.0,0.0,14,,,0.356
+energy_crisis_47,GoT,0.0,1.0,1.0,0.0,14,,,0.356
+energy_crisis_47,GoT,0.0,1.0,1.0,0.0,14,,,0.356
+energy_crisis_47,ReAct,0.1,0.9,0.985,0.0,16,,,0.356
+energy_crisis_47,ReAct,0.1,0.9,0.985,0.0,16,,,0.356
+energy_crisis_47,ReAct,0.1,0.9,0.985,0.0,16,,,0.356
+energy_crisis_47,CPPTAI,1.0,0.0,0.992,0.018,51,0.812,3,0.356
+energy_crisis_47,CPPTAI,1.0,0.0,0.992,0.018,51,0.812,3,0.356
+energy_crisis_47,CPPTAI,1.0,0.0,0.992,0.018,51,0.812,3,0.356
+energy_crisis_47,CPPTAI_no_IV,1.0,0.0,0.992,0.018,51,0.812,3,0.356
+energy_crisis_47,CPPTAI_no_IV,1.0,0.0,0.992,0.018,51,0.812,3,0.356
+energy_crisis_47,CPPTAI_no_IV,1.0,0.0,0.992,0.019,51,0.812,3,0.356
+energy_crisis_47,CPPTAI_no_I,1.0,0.0,0.992,0.018,51,0.812,3,0.356
+energy_crisis_47,CPPTAI_no_I,1.0,0.0,0.992,0.019,51,0.812,3,0.356
+energy_crisis_47,CPPTAI_no_I,1.0,0.0,0.992,0.018,51,0.812,3,0.356
+energy_crisis_48,CoT,0.0,1.0,0.992,0.0,17,,,0.356
+energy_crisis_48,CoT,0.0,1.0,0.992,0.0,17,,,0.356
+energy_crisis_48,CoT,0.0,1.0,0.992,0.0,17,,,0.356
+energy_crisis_48,ToT,0.1,0.9,1.0,0.0,15,,,0.356
+energy_crisis_48,ToT,0.1,0.9,1.0,0.0,15,,,0.356
+energy_crisis_48,ToT,0.1,0.9,1.0,0.0,15,,,0.356
+energy_crisis_48,GoT,0.0,1.0,1.0,0.0,14,,,0.356
+energy_crisis_48,GoT,0.0,1.0,1.0,0.0,14,,,0.356
+energy_crisis_48,GoT,0.0,1.0,1.0,0.0,14,,,0.356
+energy_crisis_48,ReAct,0.1,0.9,0.985,0.0,16,,,0.356
+energy_crisis_48,ReAct,0.1,0.9,0.985,0.0,16,,,0.356
+energy_crisis_48,ReAct,0.1,0.9,0.985,0.0,16,,,0.356
+energy_crisis_48,CPPTAI,1.0,0.0,0.992,0.02,51,0.812,3,0.356
+energy_crisis_48,CPPTAI,1.0,0.0,0.992,0.019,51,0.812,3,0.356
+energy_crisis_48,CPPTAI,1.0,0.0,0.992,0.019,51,0.812,3,0.356
+energy_crisis_48,CPPTAI_no_IV,1.0,0.0,0.992,0.018,51,0.812,3,0.356
+energy_crisis_48,CPPTAI_no_IV,1.0,0.0,0.992,0.019,51,0.812,3,0.356
+energy_crisis_48,CPPTAI_no_IV,1.0,0.0,0.992,0.019,51,0.812,3,0.356
+energy_crisis_48,CPPTAI_no_I,1.0,0.0,0.992,0.019,51,0.812,3,0.356
+energy_crisis_48,CPPTAI_no_I,1.0,0.0,0.992,0.02,51,0.812,3,0.356
+energy_crisis_48,CPPTAI_no_I,1.0,0.0,0.992,0.02,51,0.812,3,0.356
+energy_crisis_49,CoT,0.0,1.0,0.992,0.0,17,,,0.379
+```
+
+Parte 3/3:
+
+```csv
+energy_crisis_49,CoT,0.0,1.0,0.992,0.0,17,,,0.379
+energy_crisis_49,CoT,0.0,1.0,0.992,0.0,17,,,0.379
+energy_crisis_49,ToT,0.1,0.9,1.0,0.0,15,,,0.379
+energy_crisis_49,ToT,0.1,0.9,1.0,0.0,15,,,0.379
+energy_crisis_49,ToT,0.1,0.9,1.0,0.0,15,,,0.379
+energy_crisis_49,GoT,0.0,1.0,1.0,0.0,14,,,0.379
+energy_crisis_49,GoT,0.0,1.0,1.0,0.0,14,,,0.379
+energy_crisis_49,GoT,0.0,1.0,1.0,0.0,14,,,0.379
+energy_crisis_49,ReAct,0.1,0.9,0.985,0.0,16,,,0.379
+energy_crisis_49,ReAct,0.1,0.9,0.985,0.0,16,,,0.379
+energy_crisis_49,ReAct,0.1,0.9,0.985,0.0,16,,,0.379
+energy_crisis_49,CPPTAI,1.0,0.0,0.992,0.02,51,0.812,3,0.379
+energy_crisis_49,CPPTAI,1.0,0.0,0.992,0.02,51,0.812,3,0.379
+energy_crisis_49,CPPTAI,1.0,0.0,0.992,0.02,51,0.812,3,0.379
+energy_crisis_49,CPPTAI_no_IV,1.0,0.0,0.992,0.02,51,0.812,3,0.379
+energy_crisis_49,CPPTAI_no_IV,1.0,0.0,0.992,0.02,51,0.812,3,0.379
+energy_crisis_49,CPPTAI_no_IV,1.0,0.0,0.992,0.02,51,0.812,3,0.379
+energy_crisis_49,CPPTAI_no_I,1.0,0.0,0.992,0.02,51,0.812,3,0.379
+energy_crisis_49,CPPTAI_no_I,1.0,0.0,0.992,0.02,51,0.812,3,0.379
+energy_crisis_49,CPPTAI_no_I,1.0,0.0,0.992,0.02,51,0.812,3,0.379
+energy_crisis_50,CoT,0.0,1.0,0.992,0.0,17,,,0.379
+energy_crisis_50,CoT,0.0,1.0,0.992,0.0,17,,,0.379
+energy_crisis_50,CoT,0.0,1.0,0.992,0.0,17,,,0.379
+energy_crisis_50,ToT,0.1,0.9,1.0,0.0,15,,,0.379
+energy_crisis_50,ToT,0.1,0.9,1.0,0.0,15,,,0.379
+energy_crisis_50,ToT,0.1,0.9,1.0,0.0,15,,,0.379
+energy_crisis_50,GoT,0.0,1.0,1.0,0.0,14,,,0.379
+energy_crisis_50,GoT,0.0,1.0,1.0,0.0,14,,,0.379
+energy_crisis_50,GoT,0.0,1.0,1.0,0.0,14,,,0.379
+energy_crisis_50,ReAct,0.1,0.9,0.985,0.0,16,,,0.379
+energy_crisis_50,ReAct,0.1,0.9,0.985,0.0,16,,,0.379
+energy_crisis_50,ReAct,0.1,0.9,0.985,0.0,16,,,0.379
+energy_crisis_50,CPPTAI,1.0,0.0,0.992,0.019,51,0.812,3,0.379
+energy_crisis_50,CPPTAI,1.0,0.0,0.992,0.019,51,0.812,3,0.379
+energy_crisis_50,CPPTAI,1.0,0.0,0.992,0.019,51,0.812,3,0.379
+energy_crisis_50,CPPTAI_no_IV,1.0,0.0,0.992,0.019,51,0.812,3,0.379
+energy_crisis_50,CPPTAI_no_IV,1.0,0.0,0.992,0.019,51,0.812,3,0.379
+energy_crisis_50,CPPTAI_no_IV,1.0,0.0,0.992,0.02,51,0.812,3,0.379
+energy_crisis_50,CPPTAI_no_I,1.0,0.0,0.992,0.021,51,0.812,3,0.379
+energy_crisis_50,CPPTAI_no_I,1.0,0.0,0.992,0.022,51,0.812,3,0.379
+energy_crisis_50,CPPTAI_no_I,1.0,0.0,0.992,0.02,51,0.812,3,0.379
+energy_crisis_51,CoT,0.0,1.0,0.992,0.0,17,,,0.345
+energy_crisis_51,CoT,0.0,1.0,0.992,0.0,17,,,0.345
+energy_crisis_51,CoT,0.0,1.0,0.992,0.0,17,,,0.345
+energy_crisis_51,ToT,0.1,0.9,1.0,0.0,15,,,0.345
+energy_crisis_51,ToT,0.1,0.9,1.0,0.0,15,,,0.345
+energy_crisis_51,ToT,0.1,0.9,1.0,0.0,15,,,0.345
+energy_crisis_51,GoT,0.0,1.0,1.0,0.0,14,,,0.345
+energy_crisis_51,GoT,0.0,1.0,1.0,0.0,14,,,0.345
+energy_crisis_51,GoT,0.0,1.0,1.0,0.0,14,,,0.345
+energy_crisis_51,ReAct,0.1,0.9,0.985,0.0,16,,,0.345
+energy_crisis_51,ReAct,0.1,0.9,0.985,0.0,16,,,0.345
+energy_crisis_51,ReAct,0.1,0.9,0.985,0.0,16,,,0.345
+energy_crisis_51,CPPTAI,1.0,0.0,0.992,0.021,51,0.812,3,0.345
+energy_crisis_51,CPPTAI,1.0,0.0,0.992,0.02,51,0.812,3,0.345
+energy_crisis_51,CPPTAI,1.0,0.0,0.992,0.02,51,0.812,3,0.345
+energy_crisis_51,CPPTAI_no_IV,1.0,0.0,0.992,0.02,51,0.812,3,0.345
+energy_crisis_51,CPPTAI_no_IV,1.0,0.0,0.992,0.021,51,0.812,3,0.345
+energy_crisis_51,CPPTAI_no_IV,1.0,0.0,0.992,0.02,51,0.812,3,0.345
+energy_crisis_51,CPPTAI_no_I,1.0,0.0,0.992,0.021,51,0.812,3,0.345
+energy_crisis_51,CPPTAI_no_I,1.0,0.0,0.992,0.02,51,0.812,3,0.345
+energy_crisis_51,CPPTAI_no_I,1.0,0.0,0.992,0.02,51,0.812,3,0.345
+energy_crisis_52,CoT,0.0,1.0,0.992,0.0,17,,,0.345
+energy_crisis_52,CoT,0.0,1.0,0.992,0.0,17,,,0.345
+energy_crisis_52,CoT,0.0,1.0,0.992,0.0,17,,,0.345
+energy_crisis_52,ToT,0.1,0.9,1.0,0.0,15,,,0.345
+energy_crisis_52,ToT,0.1,0.9,1.0,0.0,15,,,0.345
+energy_crisis_52,ToT,0.1,0.9,1.0,0.0,15,,,0.345
+energy_crisis_52,GoT,0.0,1.0,1.0,0.0,14,,,0.345
+energy_crisis_52,GoT,0.0,1.0,1.0,0.0,14,,,0.345
+energy_crisis_52,GoT,0.0,1.0,1.0,0.0,14,,,0.345
+energy_crisis_52,ReAct,0.1,0.9,0.985,0.0,16,,,0.345
+energy_crisis_52,ReAct,0.1,0.9,0.985,0.0,16,,,0.345
+energy_crisis_52,ReAct,0.1,0.9,0.985,0.0,16,,,0.345
+energy_crisis_52,CPPTAI,1.0,0.0,0.992,0.021,51,0.812,3,0.345
+energy_crisis_52,CPPTAI,1.0,0.0,0.992,0.021,51,0.812,3,0.345
+energy_crisis_52,CPPTAI,1.0,0.0,0.992,0.02,51,0.812,3,0.345
+energy_crisis_52,CPPTAI_no_IV,1.0,0.0,0.992,0.019,51,0.812,3,0.345
+energy_crisis_52,CPPTAI_no_IV,1.0,0.0,0.992,0.02,51,0.812,3,0.345
+energy_crisis_52,CPPTAI_no_IV,1.0,0.0,0.992,0.02,51,0.812,3,0.345
+energy_crisis_52,CPPTAI_no_I,1.0,0.0,0.992,0.02,51,0.812,3,0.345
+energy_crisis_52,CPPTAI_no_I,1.0,0.0,0.992,0.02,51,0.812,3,0.345
+energy_crisis_52,CPPTAI_no_I,1.0,0.0,0.992,0.02,51,0.812,3,0.345
+gsm8k_1,CoT,0.0,1.0,0.992,0.0,17,,,0.598
+gsm8k_1,CoT,0.0,1.0,0.992,0.0,17,,,0.598
+gsm8k_1,CoT,0.0,1.0,0.992,0.0,17,,,0.598
+gsm8k_1,ToT,0.0,1.0,1.0,0.0,15,,,0.598
+gsm8k_1,ToT,0.0,1.0,1.0,0.0,15,,,0.598
+gsm8k_1,ToT,0.0,1.0,1.0,0.0,15,,,0.598
+gsm8k_1,GoT,0.0,1.0,1.0,0.0,14,,,0.598
+gsm8k_1,GoT,0.0,1.0,1.0,0.0,14,,,0.598
+gsm8k_1,GoT,0.0,1.0,1.0,0.0,14,,,0.598
+gsm8k_1,ReAct,0.0,1.0,0.985,0.0,16,,,0.598
+gsm8k_1,ReAct,0.0,1.0,0.985,0.0,16,,,0.598
+gsm8k_1,ReAct,0.0,1.0,0.985,0.0,16,,,0.598
+gsm8k_1,CPPTAI,0.0,1.0,1.0,0.021,8,0.853,3,0.598
+gsm8k_1,CPPTAI,0.0,1.0,1.0,0.021,8,0.853,3,0.598
+gsm8k_1,CPPTAI,0.0,1.0,1.0,0.021,8,0.853,3,0.598
+gsm8k_1,CPPTAI_no_IV,0.0,1.0,1.0,0.02,8,0.853,3,0.598
+gsm8k_1,CPPTAI_no_IV,0.0,1.0,1.0,0.02,8,0.853,3,0.598
+gsm8k_1,CPPTAI_no_IV,0.0,1.0,1.0,0.02,8,0.853,3,0.598
+gsm8k_1,CPPTAI_no_I,0.0,1.0,1.0,0.021,8,0.853,3,0.598
+gsm8k_1,CPPTAI_no_I,0.0,1.0,1.0,0.021,8,0.853,3,0.598
+gsm8k_1,CPPTAI_no_I,0.0,1.0,1.0,0.02,8,0.853,3,0.598
+gsm8k_2,CoT,0.0,1.0,0.992,0.0,17,,,0.253
+gsm8k_2,CoT,0.0,1.0,0.992,0.0,17,,,0.253
+gsm8k_2,CoT,0.0,1.0,0.992,0.0,17,,,0.253
+gsm8k_2,ToT,0.0,1.0,1.0,0.0,15,,,0.253
+gsm8k_2,ToT,0.0,1.0,1.0,0.0,15,,,0.253
+gsm8k_2,ToT,0.0,1.0,1.0,0.0,15,,,0.253
+gsm8k_2,GoT,0.0,1.0,1.0,0.0,14,,,0.253
+gsm8k_2,GoT,0.0,1.0,1.0,0.0,14,,,0.253
+gsm8k_2,GoT,0.0,1.0,1.0,0.0,14,,,0.253
+gsm8k_2,ReAct,0.0,1.0,0.985,0.0,16,,,0.253
+gsm8k_2,ReAct,0.0,1.0,0.985,0.0,16,,,0.253
+gsm8k_2,ReAct,0.0,1.0,0.985,0.0,16,,,0.253
+gsm8k_2,CPPTAI,0.0,1.0,1.0,0.02,8,0.853,3,0.253
+gsm8k_2,CPPTAI,0.0,1.0,1.0,0.02,8,0.853,3,0.253
+gsm8k_2,CPPTAI,0.0,1.0,1.0,0.021,8,0.853,3,0.253
+gsm8k_2,CPPTAI_no_IV,0.0,1.0,1.0,0.02,8,0.853,3,0.253
+gsm8k_2,CPPTAI_no_IV,0.0,1.0,1.0,0.021,8,0.853,3,0.253
+gsm8k_2,CPPTAI_no_IV,0.0,1.0,1.0,0.02,8,0.853,3,0.253
+gsm8k_2,CPPTAI_no_I,0.0,1.0,1.0,0.02,8,0.853,3,0.253
+gsm8k_2,CPPTAI_no_I,0.0,1.0,1.0,0.021,8,0.853,3,0.253
+gsm8k_2,CPPTAI_no_I,0.0,1.0,1.0,0.02,8,0.853,3,0.253
+gsm8k_3,CoT,0.0,1.0,0.992,0.0,17,,,0.402
+gsm8k_3,CoT,0.0,1.0,0.992,0.0,17,,,0.402
+gsm8k_3,CoT,0.0,1.0,0.992,0.0,17,,,0.402
+gsm8k_3,ToT,0.0,1.0,1.0,0.0,15,,,0.402
+gsm8k_3,ToT,0.0,1.0,1.0,0.0,15,,,0.402
+gsm8k_3,ToT,0.0,1.0,1.0,0.0,15,,,0.402
+gsm8k_3,GoT,0.0,1.0,1.0,0.0,14,,,0.402
+gsm8k_3,GoT,0.0,1.0,1.0,0.0,14,,,0.402
+gsm8k_3,GoT,0.0,1.0,1.0,0.0,14,,,0.402
+gsm8k_3,ReAct,0.0,1.0,0.985,0.0,16,,,0.402
+gsm8k_3,ReAct,0.0,1.0,0.985,0.0,16,,,0.402
+gsm8k_3,ReAct,0.0,1.0,0.985,0.0,16,,,0.402
+gsm8k_3,CPPTAI,0.0,1.0,1.0,0.022,8,0.853,3,0.402
+gsm8k_3,CPPTAI,0.0,1.0,1.0,0.02,8,0.853,3,0.402
+gsm8k_3,CPPTAI,0.0,1.0,1.0,0.022,8,0.853,3,0.402
+gsm8k_3,CPPTAI_no_IV,0.0,1.0,1.0,0.02,8,0.853,3,0.402
+gsm8k_3,CPPTAI_no_IV,0.0,1.0,1.0,0.022,8,0.853,3,0.402
+gsm8k_3,CPPTAI_no_IV,0.0,1.0,1.0,0.021,8,0.853,3,0.402
+gsm8k_3,CPPTAI_no_I,0.0,1.0,1.0,0.022,8,0.853,3,0.402
+gsm8k_3,CPPTAI_no_I,0.0,1.0,1.0,0.024,8,0.853,3,0.402
+gsm8k_3,CPPTAI_no_I,0.0,1.0,1.0,0.023,8,0.853,3,0.402
+gsm8k_4,CoT,0.0,1.0,0.992,0.0,17,,,0.287
+gsm8k_4,CoT,0.0,1.0,0.992,0.0,17,,,0.287
+gsm8k_4,CoT,0.0,1.0,0.992,0.0,17,,,0.287
+gsm8k_4,ToT,0.0,1.0,1.0,0.0,15,,,0.287
+gsm8k_4,ToT,0.0,1.0,1.0,0.0,15,,,0.287
+gsm8k_4,ToT,0.0,1.0,1.0,0.0,15,,,0.287
+gsm8k_4,GoT,0.0,1.0,1.0,0.0,14,,,0.287
+gsm8k_4,GoT,0.0,1.0,1.0,0.0,14,,,0.287
+gsm8k_4,GoT,0.0,1.0,1.0,0.0,14,,,0.287
+gsm8k_4,ReAct,0.0,1.0,0.985,0.0,16,,,0.287
+gsm8k_4,ReAct,0.0,1.0,0.985,0.0,16,,,0.287
+gsm8k_4,ReAct,0.0,1.0,0.985,0.0,16,,,0.287
+gsm8k_4,CPPTAI,0.0,1.0,1.0,0.021,8,0.853,3,0.287
+gsm8k_4,CPPTAI,0.0,1.0,1.0,0.021,8,0.853,3,0.287
+gsm8k_4,CPPTAI,0.0,1.0,1.0,0.021,8,0.853,3,0.287
+gsm8k_4,CPPTAI_no_IV,0.0,1.0,1.0,0.021,8,0.853,3,0.287
+gsm8k_4,CPPTAI_no_IV,0.0,1.0,1.0,0.021,8,0.853,3,0.287
+gsm8k_4,CPPTAI_no_IV,0.0,1.0,1.0,0.021,8,0.853,3,0.287
+gsm8k_4,CPPTAI_no_I,0.0,1.0,1.0,0.021,8,0.853,3,0.287
+gsm8k_4,CPPTAI_no_I,0.0,1.0,1.0,0.021,8,0.853,3,0.287
+gsm8k_4,CPPTAI_no_I,0.0,1.0,1.0,0.021,8,0.853,3,0.287
+gsm8k_5,CoT,0.0,1.0,0.992,0.0,17,,,1.0
+gsm8k_5,CoT,0.0,1.0,0.992,0.0,17,,,1.0
+gsm8k_5,CoT,0.0,1.0,0.992,0.0,17,,,1.0
+gsm8k_5,ToT,0.0,1.0,1.0,0.0,15,,,1.0
+gsm8k_5,ToT,0.0,1.0,1.0,0.0,15,,,1.0
+gsm8k_5,ToT,0.0,1.0,1.0,0.0,15,,,1.0
+gsm8k_5,GoT,0.0,1.0,1.0,0.0,14,,,1.0
+gsm8k_5,GoT,0.0,1.0,1.0,0.0,14,,,1.0
+gsm8k_5,GoT,0.0,1.0,1.0,0.0,14,,,1.0
+gsm8k_5,ReAct,0.0,1.0,0.985,0.0,16,,,1.0
+gsm8k_5,ReAct,0.0,1.0,0.985,0.0,16,,,1.0
+gsm8k_5,ReAct,0.0,1.0,0.985,0.0,16,,,1.0
+gsm8k_5,CPPTAI,0.0,1.0,1.0,0.021,8,0.853,3,1.0
+gsm8k_5,CPPTAI,0.0,1.0,1.0,0.022,8,0.853,3,1.0
+gsm8k_5,CPPTAI,0.0,1.0,1.0,0.022,8,0.853,3,1.0
+gsm8k_5,CPPTAI_no_IV,0.0,1.0,1.0,0.022,8,0.853,3,1.0
+gsm8k_5,CPPTAI_no_IV,0.0,1.0,1.0,0.022,8,0.853,3,1.0
+gsm8k_5,CPPTAI_no_IV,0.0,1.0,1.0,0.022,8,0.853,3,1.0
+gsm8k_5,CPPTAI_no_I,0.0,1.0,1.0,0.022,8,0.853,3,1.0
+gsm8k_5,CPPTAI_no_I,0.0,1.0,1.0,0.022,8,0.853,3,1.0
+gsm8k_5,CPPTAI_no_I,0.0,1.0,1.0,0.023,8,0.853,3,1.0
+math_1,CoT,0.0,1.0,0.992,0.0,17,,,0.092
+math_1,CoT,0.0,1.0,0.992,0.0,17,,,0.092
+math_1,CoT,0.0,1.0,0.992,0.0,17,,,0.092
+math_1,ToT,0.0,1.0,1.0,0.0,15,,,0.092
+math_1,ToT,0.0,1.0,1.0,0.0,15,,,0.092
+math_1,ToT,0.0,1.0,1.0,0.0,15,,,0.092
+math_1,GoT,0.0,1.0,1.0,0.0,14,,,0.092
+math_1,GoT,0.0,1.0,1.0,0.0,14,,,0.092
+math_1,GoT,0.0,1.0,1.0,0.0,14,,,0.092
+math_1,ReAct,0.0,1.0,0.985,0.0,16,,,0.092
+math_1,ReAct,0.0,1.0,0.985,0.0,16,,,0.092
+math_1,ReAct,0.0,1.0,0.985,0.0,16,,,0.092
+math_1,CPPTAI,0.0,1.0,1.0,0.023,8,0.845,3,0.092
+math_1,CPPTAI,0.0,1.0,1.0,0.023,8,0.845,3,0.092
+math_1,CPPTAI,0.0,1.0,1.0,0.022,8,0.845,3,0.092
+math_1,CPPTAI_no_IV,0.0,1.0,1.0,0.022,8,0.845,3,0.092
+math_1,CPPTAI_no_IV,0.0,1.0,1.0,0.022,8,0.845,3,0.092
+math_1,CPPTAI_no_IV,0.0,1.0,1.0,0.024,8,0.845,3,0.092
+math_1,CPPTAI_no_I,0.0,1.0,1.0,0.022,8,0.845,3,0.092
+math_1,CPPTAI_no_I,0.0,1.0,1.0,0.022,8,0.845,3,0.092
+math_1,CPPTAI_no_I,0.0,1.0,1.0,0.022,8,0.845,3,0.092
+math_2,CoT,0.0,1.0,0.992,0.0,17,,,0.092
+math_2,CoT,0.0,1.0,0.992,0.0,17,,,0.092
+math_2,CoT,0.0,1.0,0.992,0.0,17,,,0.092
+math_2,ToT,0.0,1.0,1.0,0.0,15,,,0.092
+math_2,ToT,0.0,1.0,1.0,0.0,15,,,0.092
+math_2,ToT,0.0,1.0,1.0,0.0,15,,,0.092
+math_2,GoT,0.0,1.0,1.0,0.0,14,,,0.092
+math_2,GoT,0.0,1.0,1.0,0.0,14,,,0.092
+math_2,GoT,0.0,1.0,1.0,0.0,14,,,0.092
+math_2,ReAct,0.0,1.0,0.985,0.0,16,,,0.092
+math_2,ReAct,0.0,1.0,0.985,0.0,16,,,0.092
+math_2,ReAct,0.0,1.0,0.985,0.0,16,,,0.092
+math_2,CPPTAI,0.0,1.0,1.0,0.023,8,0.845,3,0.092
+math_2,CPPTAI,0.0,1.0,1.0,0.022,8,0.845,3,0.092
+math_2,CPPTAI,0.0,1.0,1.0,0.022,8,0.845,3,0.092
+math_2,CPPTAI_no_IV,0.0,1.0,1.0,0.022,8,0.845,3,0.092
+math_2,CPPTAI_no_IV,0.0,1.0,1.0,0.023,8,0.845,3,0.092
+math_2,CPPTAI_no_IV,0.0,1.0,1.0,0.023,8,0.845,3,0.092
+math_2,CPPTAI_no_I,0.0,1.0,1.0,0.023,8,0.845,3,0.092
+math_2,CPPTAI_no_I,0.0,1.0,1.0,0.023,8,0.845,3,0.092
+math_2,CPPTAI_no_I,0.0,1.0,1.0,0.023,8,0.845,3,0.092
+math_3,CoT,0.0,1.0,0.992,0.0,17,,,0.092
+math_3,CoT,0.0,1.0,0.992,0.0,17,,,0.092
+math_3,CoT,0.0,1.0,0.992,0.0,17,,,0.092
+math_3,ToT,0.0,1.0,1.0,0.0,15,,,0.092
+math_3,ToT,0.0,1.0,1.0,0.0,15,,,0.092
+math_3,ToT,0.0,1.0,1.0,0.0,15,,,0.092
+math_3,GoT,0.0,1.0,1.0,0.0,14,,,0.092
+math_3,GoT,0.0,1.0,1.0,0.0,14,,,0.092
+math_3,GoT,0.0,1.0,1.0,0.0,14,,,0.092
+math_3,ReAct,0.0,1.0,0.985,0.0,16,,,0.092
+math_3,ReAct,0.0,1.0,0.985,0.0,16,,,0.092
+math_3,ReAct,0.0,1.0,0.985,0.0,16,,,0.092
+math_3,CPPTAI,0.0,1.0,1.0,0.023,8,0.845,3,0.092
+math_3,CPPTAI,0.0,1.0,1.0,0.022,8,0.845,3,0.092
+math_3,CPPTAI,0.0,1.0,1.0,0.022,8,0.845,3,0.092
+math_3,CPPTAI_no_IV,0.0,1.0,1.0,0.022,8,0.845,3,0.092
+math_3,CPPTAI_no_IV,0.0,1.0,1.0,0.024,8,0.845,3,0.092
+math_3,CPPTAI_no_IV,0.0,1.0,1.0,0.023,8,0.845,3,0.092
+math_3,CPPTAI_no_I,0.0,1.0,1.0,0.023,8,0.845,3,0.092
+math_3,CPPTAI_no_I,0.0,1.0,1.0,0.023,8,0.845,3,0.092
+math_3,CPPTAI_no_I,0.0,1.0,1.0,0.023,8,0.845,3,0.092
+math_4,CoT,0.0,1.0,0.992,0.0,17,,,0.092
+math_4,CoT,0.0,1.0,0.992,0.0,17,,,0.092
+math_4,CoT,0.0,1.0,0.992,0.0,17,,,0.092
+math_4,ToT,0.0,1.0,1.0,0.0,15,,,0.092
+math_4,ToT,0.0,1.0,1.0,0.0,15,,,0.092
+math_4,ToT,0.0,1.0,1.0,0.0,15,,,0.092
+math_4,GoT,0.0,1.0,1.0,0.0,14,,,0.092
+math_4,GoT,0.0,1.0,1.0,0.0,14,,,0.092
+math_4,GoT,0.0,1.0,1.0,0.0,14,,,0.092
+math_4,ReAct,0.0,1.0,0.985,0.0,16,,,0.092
+math_4,ReAct,0.0,1.0,0.985,0.0,16,,,0.092
+math_4,ReAct,0.0,1.0,0.985,0.0,16,,,0.092
+math_4,CPPTAI,0.0,1.0,1.0,0.022,8,0.845,3,0.092
+math_4,CPPTAI,0.0,1.0,1.0,0.023,8,0.845,3,0.092
+math_4,CPPTAI,0.0,1.0,1.0,0.023,8,0.845,3,0.092
+math_4,CPPTAI_no_IV,0.0,1.0,1.0,0.022,8,0.845,3,0.092
+math_4,CPPTAI_no_IV,0.0,1.0,1.0,0.022,8,0.845,3,0.092
+math_4,CPPTAI_no_IV,0.0,1.0,1.0,0.023,8,0.845,3,0.092
+math_4,CPPTAI_no_I,0.0,1.0,1.0,0.023,8,0.845,3,0.092
+math_4,CPPTAI_no_I,0.0,1.0,1.0,0.024,8,0.845,3,0.092
+math_4,CPPTAI_no_I,0.0,1.0,1.0,0.024,8,0.845,3,0.092
+math_5,CoT,0.0,1.0,0.992,0.0,17,,,0.092
+math_5,CoT,0.0,1.0,0.992,0.0,17,,,0.092
+math_5,CoT,0.0,1.0,0.992,0.0,17,,,0.092
+math_5,ToT,0.0,1.0,1.0,0.0,15,,,0.092
+math_5,ToT,0.0,1.0,1.0,0.0,15,,,0.092
+math_5,ToT,0.0,1.0,1.0,0.0,15,,,0.092
+math_5,GoT,0.0,1.0,1.0,0.0,14,,,0.092
+math_5,GoT,0.0,1.0,1.0,0.0,14,,,0.092
+math_5,GoT,0.0,1.0,1.0,0.0,14,,,0.092
+math_5,ReAct,0.0,1.0,0.985,0.0,16,,,0.092
+math_5,ReAct,0.0,1.0,0.985,0.0,16,,,0.092
+math_5,ReAct,0.0,1.0,0.985,0.0,16,,,0.092
+math_5,CPPTAI,0.0,1.0,1.0,0.025,8,0.845,3,0.092
+math_5,CPPTAI,0.0,1.0,1.0,0.024,8,0.845,3,0.092
+math_5,CPPTAI,0.0,1.0,1.0,0.025,8,0.845,3,0.092
+math_5,CPPTAI_no_IV,0.0,1.0,1.0,0.023,8,0.845,3,0.092
+math_5,CPPTAI_no_IV,0.0,1.0,1.0,0.022,8,0.845,3,0.092
+math_5,CPPTAI_no_IV,0.0,1.0,1.0,0.023,8,0.845,3,0.092
+math_5,CPPTAI_no_I,0.0,1.0,1.0,0.023,8,0.845,3,0.092
+math_5,CPPTAI_no_I,0.0,1.0,1.0,0.022,8,0.845,3,0.092
+math_5,CPPTAI_no_I,0.0,1.0,1.0,0.023,8,0.845,3,0.092
+he_1,CoT,0.0,1.0,0.992,0.0,17,,,0.529
+he_1,CoT,0.0,1.0,0.992,0.0,17,,,0.529
+he_1,CoT,0.0,1.0,0.992,0.0,17,,,0.529
+he_1,ToT,0.0,1.0,1.0,0.0,15,,,0.529
+he_1,ToT,0.0,1.0,1.0,0.0,15,,,0.529
+he_1,ToT,0.0,1.0,1.0,0.0,15,,,0.529
+he_1,GoT,0.0,1.0,1.0,0.0,14,,,0.529
+he_1,GoT,0.0,1.0,1.0,0.0,14,,,0.529
+he_1,GoT,0.0,1.0,1.0,0.0,14,,,0.529
+he_1,ReAct,0.0,1.0,0.985,0.0,16,,,0.529
+he_1,ReAct,0.0,1.0,0.985,0.0,16,,,0.529
+he_1,ReAct,0.0,1.0,0.985,0.0,16,,,0.529
+he_1,CPPTAI,0.0,1.0,1.0,0.023,8,0.853,3,0.529
+he_1,CPPTAI,0.0,1.0,1.0,0.023,8,0.853,3,0.529
+he_1,CPPTAI,0.0,1.0,1.0,0.023,8,0.853,3,0.529
+he_1,CPPTAI_no_IV,0.0,1.0,1.0,0.023,8,0.853,3,0.529
+he_1,CPPTAI_no_IV,0.0,1.0,1.0,0.023,8,0.853,3,0.529
+he_1,CPPTAI_no_IV,0.0,1.0,1.0,0.023,8,0.853,3,0.529
+he_1,CPPTAI_no_I,0.0,1.0,1.0,0.023,8,0.853,3,0.529
+he_1,CPPTAI_no_I,0.0,1.0,1.0,0.024,8,0.853,3,0.529
+he_1,CPPTAI_no_I,0.0,1.0,1.0,0.023,8,0.853,3,0.529
+he_2,CoT,0.0,1.0,0.992,0.0,17,,,0.851
+he_2,CoT,0.0,1.0,0.992,0.0,17,,,0.851
+he_2,CoT,0.0,1.0,0.992,0.0,17,,,0.851
+he_2,ToT,0.0,1.0,1.0,0.0,15,,,0.851
+he_2,ToT,0.0,1.0,1.0,0.0,15,,,0.851
+he_2,ToT,0.0,1.0,1.0,0.0,15,,,0.851
+he_2,GoT,0.0,1.0,1.0,0.0,14,,,0.851
+he_2,GoT,0.0,1.0,1.0,0.0,14,,,0.851
+he_2,GoT,0.0,1.0,1.0,0.0,14,,,0.851
+he_2,ReAct,0.0,1.0,0.985,0.0,16,,,0.851
+he_2,ReAct,0.0,1.0,0.985,0.0,16,,,0.851
+he_2,ReAct,0.0,1.0,0.985,0.0,16,,,0.851
+he_2,CPPTAI,0.0,1.0,1.0,0.023,8,0.853,3,0.851
+he_2,CPPTAI,0.0,1.0,1.0,0.023,8,0.853,3,0.851
+he_2,CPPTAI,0.0,1.0,1.0,0.025,8,0.853,3,0.851
+he_2,CPPTAI_no_IV,0.0,1.0,1.0,0.025,8,0.853,3,0.851
+he_2,CPPTAI_no_IV,0.0,1.0,1.0,0.026,8,0.853,3,0.851
+he_2,CPPTAI_no_IV,0.0,1.0,1.0,0.025,8,0.853,3,0.851
+he_2,CPPTAI_no_I,0.0,1.0,1.0,0.025,8,0.853,3,0.851
+he_2,CPPTAI_no_I,0.0,1.0,1.0,0.024,8,0.853,3,0.851
+he_2,CPPTAI_no_I,0.0,1.0,1.0,0.025,8,0.853,3,0.851
+he_3,CoT,0.0,1.0,0.992,0.0,17,,,0.517
+he_3,CoT,0.0,1.0,0.992,0.0,17,,,0.517
+he_3,CoT,0.0,1.0,0.992,0.0,17,,,0.517
+he_3,ToT,0.0,1.0,1.0,0.0,15,,,0.517
+he_3,ToT,0.0,1.0,1.0,0.0,15,,,0.517
+he_3,ToT,0.0,1.0,1.0,0.0,15,,,0.517
+he_3,GoT,0.0,1.0,1.0,0.0,14,,,0.517
+he_3,GoT,0.0,1.0,1.0,0.0,14,,,0.517
+he_3,GoT,0.0,1.0,1.0,0.0,14,,,0.517
+he_3,ReAct,0.0,1.0,0.985,0.0,16,,,0.517
+he_3,ReAct,0.0,1.0,0.985,0.0,16,,,0.517
+he_3,ReAct,0.0,1.0,0.985,0.0,16,,,0.517
+he_3,CPPTAI,0.0,1.0,1.0,0.025,8,0.853,3,0.517
+he_3,CPPTAI,0.0,1.0,1.0,0.027,8,0.853,3,0.517
+he_3,CPPTAI,0.0,1.0,1.0,0.024,8,0.853,3,0.517
+he_3,CPPTAI_no_IV,0.0,1.0,1.0,0.025,8,0.853,3,0.517
+he_3,CPPTAI_no_IV,0.0,1.0,1.0,0.024,8,0.853,3,0.517
+he_3,CPPTAI_no_IV,0.0,1.0,1.0,0.025,8,0.853,3,0.517
+he_3,CPPTAI_no_I,0.0,1.0,1.0,0.026,8,0.853,3,0.517
+he_3,CPPTAI_no_I,0.0,1.0,1.0,0.025,8,0.853,3,0.517
+he_3,CPPTAI_no_I,0.0,1.0,1.0,0.025,8,0.853,3,0.517
+he_4,CoT,0.0,1.0,0.992,0.0,17,,,0.793
+he_4,CoT,0.0,1.0,0.992,0.0,17,,,0.793
+he_4,CoT,0.0,1.0,0.992,0.0,17,,,0.793
+he_4,ToT,0.0,1.0,1.0,0.0,15,,,0.793
+he_4,ToT,0.0,1.0,1.0,0.0,15,,,0.793
+he_4,ToT,0.0,1.0,1.0,0.0,15,,,0.793
+he_4,GoT,0.0,1.0,1.0,0.0,14,,,0.793
+he_4,GoT,0.0,1.0,1.0,0.0,14,,,0.793
+he_4,GoT,0.0,1.0,1.0,0.0,14,,,0.793
+he_4,ReAct,0.0,1.0,0.985,0.0,16,,,0.793
+he_4,ReAct,0.0,1.0,0.985,0.0,16,,,0.793
+he_4,ReAct,0.0,1.0,0.985,0.0,16,,,0.793
+he_4,CPPTAI,0.0,1.0,1.0,0.025,8,0.853,3,0.793
+he_4,CPPTAI,0.0,1.0,1.0,0.025,8,0.853,3,0.793
+he_4,CPPTAI,0.0,1.0,1.0,0.025,8,0.853,3,0.793
+he_4,CPPTAI_no_IV,0.0,1.0,1.0,0.026,8,0.853,3,0.793
+he_4,CPPTAI_no_IV,0.0,1.0,1.0,0.027,8,0.853,3,0.793
+he_4,CPPTAI_no_IV,0.0,1.0,1.0,0.025,8,0.853,3,0.793
+he_4,CPPTAI_no_I,0.0,1.0,1.0,0.025,8,0.853,3,0.793
+he_4,CPPTAI_no_I,0.0,1.0,1.0,0.026,8,0.853,3,0.793
+he_4,CPPTAI_no_I,0.0,1.0,1.0,0.027,8,0.853,3,0.793
+he_5,CoT,0.0,1.0,0.992,0.0,17,,,0.69
+he_5,CoT,0.0,1.0,0.992,0.0,17,,,0.69
+he_5,CoT,0.0,1.0,0.992,0.0,17,,,0.69
+he_5,ToT,0.0,1.0,1.0,0.0,15,,,0.69
+he_5,ToT,0.0,1.0,1.0,0.0,15,,,0.69
+he_5,ToT,0.0,1.0,1.0,0.0,15,,,0.69
+he_5,GoT,0.0,1.0,1.0,0.0,14,,,0.69
+he_5,GoT,0.0,1.0,1.0,0.0,14,,,0.69
+he_5,GoT,0.0,1.0,1.0,0.0,14,,,0.69
+he_5,ReAct,0.0,1.0,0.985,0.0,16,,,0.69
+he_5,ReAct,0.0,1.0,0.985,0.0,16,,,0.69
+he_5,ReAct,0.0,1.0,0.985,0.0,16,,,0.69
+he_5,CPPTAI,0.0,1.0,1.0,0.026,8,0.853,3,0.69
+he_5,CPPTAI,0.0,1.0,1.0,0.026,8,0.853,3,0.69
+he_5,CPPTAI,0.0,1.0,1.0,0.026,8,0.853,3,0.69
+he_5,CPPTAI_no_IV,0.0,1.0,1.0,0.026,8,0.853,3,0.69
+he_5,CPPTAI_no_IV,0.0,1.0,1.0,0.026,8,0.853,3,0.69
+he_5,CPPTAI_no_IV,0.0,1.0,1.0,0.026,8,0.853,3,0.69
+he_5,CPPTAI_no_I,0.0,1.0,1.0,0.027,8,0.853,3,0.69
+he_5,CPPTAI_no_I,0.0,1.0,1.0,0.027,8,0.853,3,0.69
+he_5,CPPTAI_no_I,0.0,1.0,1.0,0.026,8,0.853,3,0.69
+scibench_1,CoT,0.0,1.0,0.992,0.0,17,,,0.138
+scibench_1,CoT,0.0,1.0,0.992,0.0,17,,,0.138
+scibench_1,CoT,0.0,1.0,0.992,0.0,17,,,0.138
+scibench_1,ToT,0.0,1.0,1.0,0.0,15,,,0.138
+scibench_1,ToT,0.0,1.0,1.0,0.0,15,,,0.138
+scibench_1,ToT,0.0,1.0,1.0,0.0,15,,,0.138
+scibench_1,GoT,0.0,1.0,1.0,0.0,14,,,0.138
+scibench_1,GoT,0.0,1.0,1.0,0.0,14,,,0.138
+scibench_1,GoT,0.0,1.0,1.0,0.0,14,,,0.138
+scibench_1,ReAct,0.0,1.0,0.985,0.0,16,,,0.138
+scibench_1,ReAct,0.0,1.0,0.985,0.0,16,,,0.138
+scibench_1,ReAct,0.0,1.0,0.985,0.0,16,,,0.138
+scibench_1,CPPTAI,0.0,1.0,0.992,0.026,51,0.811,3,0.138
+scibench_1,CPPTAI,0.0,1.0,0.992,0.026,51,0.811,3,0.138
+scibench_1,CPPTAI,0.0,1.0,0.992,0.025,51,0.811,3,0.138
+scibench_1,CPPTAI_no_IV,0.0,1.0,0.992,0.027,51,0.811,3,0.138
+scibench_1,CPPTAI_no_IV,0.0,1.0,0.992,0.026,51,0.811,3,0.138
+scibench_1,CPPTAI_no_IV,0.0,1.0,0.992,0.026,51,0.811,3,0.138
+scibench_1,CPPTAI_no_I,0.0,1.0,0.992,0.027,51,0.811,3,0.138
+scibench_1,CPPTAI_no_I,0.0,1.0,0.992,0.027,51,0.811,3,0.138
+scibench_1,CPPTAI_no_I,0.0,1.0,0.992,0.027,51,0.811,3,0.138
+scibench_2,CoT,0.0,1.0,0.992,0.0,17,,,0.138
+scibench_2,CoT,0.0,1.0,0.992,0.0,17,,,0.138
+scibench_2,CoT,0.0,1.0,0.992,0.0,17,,,0.138
+scibench_2,ToT,0.0,1.0,1.0,0.0,15,,,0.138
+scibench_2,ToT,0.0,1.0,1.0,0.0,15,,,0.138
+scibench_2,ToT,0.0,1.0,1.0,0.0,15,,,0.138
+scibench_2,GoT,0.0,1.0,1.0,0.0,14,,,0.138
+scibench_2,GoT,0.0,1.0,1.0,0.0,14,,,0.138
+scibench_2,GoT,0.0,1.0,1.0,0.0,14,,,0.138
+scibench_2,ReAct,0.0,1.0,0.985,0.0,16,,,0.138
+scibench_2,ReAct,0.0,1.0,0.985,0.0,16,,,0.138
+scibench_2,ReAct,0.0,1.0,0.985,0.0,16,,,0.138
+scibench_2,CPPTAI,0.0,1.0,0.992,0.026,51,0.811,3,0.138
+scibench_2,CPPTAI,0.0,1.0,0.992,0.026,51,0.811,3,0.138
+scibench_2,CPPTAI,0.0,1.0,0.992,0.027,51,0.811,3,0.138
+scibench_2,CPPTAI_no_IV,0.0,1.0,0.992,0.026,51,0.811,3,0.138
+scibench_2,CPPTAI_no_IV,0.0,1.0,0.992,0.027,51,0.811,3,0.138
+scibench_2,CPPTAI_no_IV,0.0,1.0,0.992,0.026,51,0.811,3,0.138
+scibench_2,CPPTAI_no_I,0.0,1.0,0.992,0.026,51,0.811,3,0.138
+scibench_2,CPPTAI_no_I,0.0,1.0,0.992,0.025,51,0.811,3,0.138
+scibench_2,CPPTAI_no_I,0.0,1.0,0.992,0.027,51,0.811,3,0.138
+scibench_3,CoT,0.0,1.0,0.992,0.0,17,,,0.138
+scibench_3,CoT,0.0,1.0,0.992,0.0,17,,,0.138
+scibench_3,CoT,0.0,1.0,0.992,0.0,17,,,0.138
+scibench_3,ToT,0.0,1.0,1.0,0.0,15,,,0.138
+scibench_3,ToT,0.0,1.0,1.0,0.0,15,,,0.138
+scibench_3,ToT,0.0,1.0,1.0,0.0,15,,,0.138
+scibench_3,GoT,0.0,1.0,1.0,0.0,14,,,0.138
+scibench_3,GoT,0.0,1.0,1.0,0.0,14,,,0.138
+scibench_3,GoT,0.0,1.0,1.0,0.0,14,,,0.138
+scibench_3,ReAct,0.0,1.0,0.985,0.0,16,,,0.138
+scibench_3,ReAct,0.0,1.0,0.985,0.0,16,,,0.138
+scibench_3,ReAct,0.0,1.0,0.985,0.0,16,,,0.138
+scibench_3,CPPTAI,0.0,1.0,0.992,0.026,51,0.811,3,0.138
+scibench_3,CPPTAI,0.0,1.0,0.992,0.026,51,0.811,3,0.138
+scibench_3,CPPTAI,0.0,1.0,0.992,0.026,51,0.811,3,0.138
+scibench_3,CPPTAI_no_IV,0.0,1.0,0.992,0.026,51,0.811,3,0.138
+scibench_3,CPPTAI_no_IV,0.0,1.0,0.992,0.027,51,0.811,3,0.138
+scibench_3,CPPTAI_no_IV,0.0,1.0,0.992,0.026,51,0.811,3,0.138
+scibench_3,CPPTAI_no_I,0.0,1.0,0.992,0.026,51,0.811,3,0.138
+scibench_3,CPPTAI_no_I,0.0,1.0,0.992,0.026,51,0.811,3,0.138
+scibench_3,CPPTAI_no_I,0.0,1.0,0.992,0.026,51,0.811,3,0.138
+scibench_4,CoT,0.0,1.0,0.992,0.0,17,,,0.138
+scibench_4,CoT,0.0,1.0,0.992,0.0,17,,,0.138
+scibench_4,CoT,0.0,1.0,0.992,0.0,17,,,0.138
+scibench_4,ToT,0.0,1.0,1.0,0.0,15,,,0.138
+scibench_4,ToT,0.0,1.0,1.0,0.0,15,,,0.138
+scibench_4,ToT,0.0,1.0,1.0,0.0,15,,,0.138
+scibench_4,GoT,0.0,1.0,1.0,0.0,14,,,0.138
+scibench_4,GoT,0.0,1.0,1.0,0.0,14,,,0.138
+scibench_4,GoT,0.0,1.0,1.0,0.0,14,,,0.138
+scibench_4,ReAct,0.0,1.0,0.985,0.0,16,,,0.138
+scibench_4,ReAct,0.0,1.0,0.985,0.0,16,,,0.138
+scibench_4,ReAct,0.0,1.0,0.985,0.0,16,,,0.138
+scibench_4,CPPTAI,0.0,1.0,0.992,0.026,51,0.811,3,0.138
+scibench_4,CPPTAI,0.0,1.0,0.992,0.026,51,0.811,3,0.138
+scibench_4,CPPTAI,0.0,1.0,0.992,0.027,51,0.811,3,0.138
+scibench_4,CPPTAI_no_IV,0.0,1.0,0.992,0.027,51,0.811,3,0.138
+scibench_4,CPPTAI_no_IV,0.0,1.0,0.992,0.027,51,0.811,3,0.138
+scibench_4,CPPTAI_no_IV,0.0,1.0,0.992,0.026,51,0.811,3,0.138
+scibench_4,CPPTAI_no_I,0.0,1.0,0.992,0.026,51,0.811,3,0.138
+scibench_4,CPPTAI_no_I,0.0,1.0,0.992,0.026,51,0.811,3,0.138
+scibench_4,CPPTAI_no_I,0.0,1.0,0.992,0.027,51,0.811,3,0.138
+scibench_5,CoT,0.0,1.0,0.992,0.0,17,,,0.138
+scibench_5,CoT,0.0,1.0,0.992,0.0,17,,,0.138
+scibench_5,CoT,0.0,1.0,0.992,0.0,17,,,0.138
+scibench_5,ToT,0.0,1.0,1.0,0.0,15,,,0.138
+scibench_5,ToT,0.0,1.0,1.0,0.0,15,,,0.138
+scibench_5,ToT,0.0,1.0,1.0,0.0,15,,,0.138
+scibench_5,GoT,0.0,1.0,1.0,0.0,14,,,0.138
+scibench_5,GoT,0.0,1.0,1.0,0.0,14,,,0.138
+scibench_5,GoT,0.0,1.0,1.0,0.0,14,,,0.138
+scibench_5,ReAct,0.0,1.0,0.985,0.0,16,,,0.138
+scibench_5,ReAct,0.0,1.0,0.985,0.0,16,,,0.138
+scibench_5,ReAct,0.0,1.0,0.985,0.0,16,,,0.138
+scibench_5,CPPTAI,0.0,1.0,0.992,0.026,51,0.811,3,0.138
+scibench_5,CPPTAI,0.0,1.0,0.992,0.027,51,0.811,3,0.138
+scibench_5,CPPTAI,0.0,1.0,0.992,0.026,51,0.811,3,0.138
+scibench_5,CPPTAI_no_IV,0.0,1.0,0.992,0.027,51,0.811,3,0.138
+scibench_5,CPPTAI_no_IV,0.0,1.0,0.992,0.027,51,0.811,3,0.138
+scibench_5,CPPTAI_no_IV,0.0,1.0,0.992,0.027,51,0.811,3,0.138
+scibench_5,CPPTAI_no_I,0.0,1.0,0.992,0.027,51,0.811,3,0.138
+scibench_5,CPPTAI_no_I,0.0,1.0,0.992,0.026,51,0.811,3,0.138
+scibench_5,CPPTAI_no_I,0.0,1.0,0.992,0.027,51,0.811,3,0.138
+```
+
+### 8) JSON completo di run_b4014...json
+
+```json
+{
+  "run_id": "b4014d21-40ef-4abc-9a5f-bae443779339",
+  "git_commit": "23e914fb60e66625e9152dc488202d0091cfa848",
+  "timestamp": "2026-03-28T19:59:58.943585+00:00",
+  "benchmark_name": "mixed_offline",
+  "task_id": "cli_default",
+  "model_name": "DeepSeek-V3.2-Exp",
+  "seed": 0,
+  "external_enabled": false,
+  "cache_mode": "offline",
+  "phase_outputs": [
+    {
+      "name": "phase1_entropic_segregation",
+      "input": {
+        "problem": "How can we address the global energy crisis considering: 1) limits of renewables, 2) nuclear costs, 3) fossil dependency, 4) geopolitical factors, 5) a just transition for workers?"
+      },
+      "output": {
+        "blocks": [
+          "B1"
+        ],
+        "block_solutions": [
+          {
+            "block_id": "B1",
+            "steps": [
+              "Step 0: Analyze 'How can we address the global energy crisis considering: 1) ' → refine assumptions, consider dependencies none, estimate solvability 0.55."
+            ],
+            "final_solution": "Step 0: Analyze 'How can we address the global energy crisis considering: 1) ' → refine assumptions, consider dependencies none, estimate solvability 0.55.",
+            "entropy_reduction": 0.24491866240370913
+          }
+        ]
+      },
+      "decisions": {},
+      "errors": [],
+      "duration_sec": 2.8100039344280958e-05
+    },
+    {
+      "name": "phase2_vertical_topology",
+      "input": {
+        "block_count": 1
+      },
+      "output": {
+        "building_height": 9,
+        "floors": {
+          "B1": 8
+        }
+      },
+      "decisions": {},
+      "errors": [],
+      "duration_sec": 9.200011845678091e-06
+    },
+    {
+      "name": "phase3_cognitive_descent",
+      "input": {
+        "building_height": 9
+      },
+      "output": {
+        "final_answer": "Solution collapsed at ground floor with confidence 0.23",
+        "counterfactual_summary": "If we skipped floor 5, S would be ≈ 0.229",
+        "attribution_explanation": "Floor 9: ΔS=-0.007 → B1:-0.007\nFloor 8: ΔS=-0.004 → B1:-0.004\nFloor 7: ΔS=-0.002 → B1:-0.002\nFloor 6: ΔS=+0.000 → B1:+0.000\nFloor 5: ΔS=+0.003 → B1:+0.003\nFloor 4: ΔS=+0.005 → B1:+0.005\nFloor 3: ΔS=+0.007 → B1:+0.007\nFloor 2: ΔS=+0.008 → B1:+0.008\nFloor 1: ΔS=+0.010 → B1:+0.010\nFloor 0: ΔS=+0.012 → B1:+0.012"
+      },
+      "decisions": {},
+      "errors": [],
+      "duration_sec": 0.0001254999660886824
+    },
+    {
+      "name": "phase4_external_convergence",
+      "input": {
+        "external_enabled": false
+      },
+      "output": {
+        "confidence": 0.0,
+        "external_synthesis": ""
+      },
+      "decisions": {},
+      "errors": [],
+      "duration_sec": 1.400010660290718e-06
+    },
+    {
+      "name": "phase5_presentation",
+      "input": {
+        "context": "technical"
+      },
+      "output": {
+        "final_answer": "Solution collapsed at ground floor with confidence 0.23",
+        "final_arranged": "## Analysis\nSolution collapsed at ground floor with confidence 0.23\n\n## Solution\nSolution collapsed at ground floor with confidence 0.23\n\n## Details\nSolution collapsed at ground floor with confidence 0.23"
+      },
+      "decisions": {},
+      "errors": [],
+      "duration_sec": 1.0300020221620798e-05
+    }
+  ],
+  "entropy_by_phase": {
+    "phase1_entropic_segregation": 0.03571428571428571,
+    "phase2_vertical_topology": 9.0,
+    "phase3_cognitive_descent": 1.1111111111111112,
+    "phase4_external_convergence": 0.0,
+    "phase5_presentation": 0.08
+  },
+  "final_answer": "Solution collapsed at ground floor with confidence 0.23",
+  "verification_result": {
+    "passed": true,
+    "score": null,
+    "verifier_type": "none"
+  },
+  "runtime_seconds": 0.00030590000096708536,
+  "token_counts": {
+    "final_answer_tokens": 8
+  },
+  "provenance": {
+    "external": {
+      "external_synthesis": "",
+      "responses": {},
+      "confidence": 0.0
+    }
+  },
+  "failure_phase": null,
+  "failure_reason": null,
+  "fallback_triggered": false
+}
+```
+
+### 9) File .github/workflows/ci.yml (completo)
+
+```yaml
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+      - name: Unit tests
+        run: |
+          python -m unittest discover -s tests -p "test_*.py" -q
+      - name: Offline smoke run (v2)
+        env:
+          BENCH_DISABLE_EXTERNAL: "1"
+          CPPTAI_DISABLE_EXTERNAL: "1"
+          CPPTAI_CACHE_MODE: "offline"
+        run: |
+          python src/main.py --v2 --offline --no-benchmark
+```
+
+
+-------------------------------
+### 10) GSM8K (20–30 problemi) con verifier numerico (reale)
+
+L'unica mossa che conta ora è far girare CPPTAI su GSM8K con un verifier vero — anche solo 20-30 problemi.
+
+Comando eseguito:
+
+```powershell
+python scripts/run_suite.py --config configs/default.yaml --gsm8k 30 --no-benchmark
+```
+
+Verifier usato:
+- confronto numerico esatto su answer-key GSM8K (estrazione dell’ultimo numero da prediction e expected; match con tolleranza 1e-9).
+
+Output osservato:
+
+```text
+GSM8K: {'n': 30, 'accuracy': 0.933}
+```
+
+Artifact scritto:
+- `artifacts/gsm8k_eval.json`
+
+Nota operativa:
+- Con chiave API attiva, il client DeepSeek risponde correttamente. La label di config `DeepSeek-V3.2-Exp` viene normalizzata all’ID API `deepseek-chat` (compatibilità endpoint `/chat/completions`). Smoke test minimale:
+
+```text
+none False
+4
+```
